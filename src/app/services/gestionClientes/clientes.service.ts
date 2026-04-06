@@ -32,9 +32,9 @@ export class ClientesService {
     );
   }
   // 🔎 Buscar clientes por query (ej: apellido, nombre, etc.)
-  buscarClientes(q: string): Observable<Response_Generico<BuscarClientes[]>> {
-    return this.http.get<Response_Generico<BuscarClientes[]>>(
-      `${this.baseUrl}/buscar?q=${encodeURIComponent(q)}`
-    );
+  buscarClientes(q: string, estado?: number): Observable<Response_Generico<BuscarClientes[]>> {
+    let url = `${this.baseUrl}/buscar?q=${encodeURIComponent(q)}`;
+    if (estado != null) url += `&estado=${estado}`;
+    return this.http.get<Response_Generico<BuscarClientes[]>>(url);
   }
 }

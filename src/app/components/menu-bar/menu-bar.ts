@@ -24,150 +24,14 @@ export class MenuBar {
   ngOnInit() {
     this.items = [
       {
-        label: 'Gestión de Clientes',
-        icon: 'pi pi-users',
+        label: 'Gestión de Contratos',
+        icon: 'pi pi-file-edit',
         items: [
-          {
-            label: 'Registro Clientes',
-            icon: 'pi pi-plus',
-            routerLink: './clientes',
-            command: () => {
-              // this.messageService.add({ severity: 'success', summary: 'Success', detail: 'File created', life: 3000 });
-            },
-          },
-          // {
-          //   label: 'Asignación de Plan',
-          //   icon: 'pi pi-check-circle',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Estado del Servicio',
-          //   icon: 'pi pi-info-circle',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Configuración Técnica del Servicio',
-          //   icon: 'pi pi-cog',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Adjuntos',
-          //   icon: 'pi pi-paperclip',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Historial de Cambios',
-          //   icon: 'pi pi-history',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Búsqueda y Filtros',
-          //   icon: 'pi pi-filter',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Integración con mapa',
-          //   icon: 'pi pi-map', // mapa
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Botón para Corte/Activación',
-          //   icon: 'pi pi-power-off',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
           {
             label: 'Contrato por Servicio',
             icon: 'pi pi-file',
             routerLink: './contrato-servicio',
-            command: () => {
-              this.messageService.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No printer connected',
-                life: 3000,
-              });
-            },
           },
-          // {
-          //   label: 'Gestión de Clientes y Servicios',
-          //   icon: 'pi pi-users',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
-          // {
-          //   label: 'Gestión de Servicios Contratados',
-          //   icon: 'pi pi-briefcase',
-          //   command: () => {
-          //     this.messageService.add({
-          //       severity: 'error',
-          //       summary: 'Error',
-          //       detail: 'No printer connected',
-          //       life: 3000,
-          //     });
-          //   },
-          // },
         ],
       },
       {
@@ -571,77 +435,6 @@ export class MenuBar {
         ],
       },
       {
-        label: 'Gestión de Inventario',
-        icon: 'pi pi-pen-to-square', // configuración general
-        items: [
-          {
-            label: 'Proveedores',
-            icon: 'pi pi-user', // relacionado con direcciones/mapas
-            // routerLink: './orden-trabajo',
-            command: () => {
-              this.messageService.add({
-                severity: 'info',
-                summary: 'Planes de Servicio',
-                detail: 'Funcionalidad en desarrollo',
-                life: 3000,
-              });
-            },
-          },
-          {
-            label: 'Listado de Articulos',
-            icon: 'pi pi-calendar', // planes/servicios empresariales o residenciales
-            // routerLink: './agencia-tecnica',
-                command: () => {
-                  this.messageService.add({
-                    severity: 'info',
-                    summary: 'Planes de Servicio',
-                    detail: 'Funcionalidad en desarrollo',
-                    life: 3000,
-                  });
-                },
-          },
-          {
-            label: 'Historial de Requerimientos',
-            icon: 'pi pi-bell', // planes/servicios empresariales o residenciales
-            // routerLink: './ejecucion-orden',
-            command: () => {
-              this.messageService.add({
-                severity: 'info',
-                summary: 'Planes de Servicio',
-                detail: 'Funcionalidad en desarrollo',
-                life: 3000,
-              });
-            },
-          },
-          {
-            label: 'Solicitud de Requerimiento',
-            icon: 'pi pi-pencil', // planes/servicios empresariales o residenciales
-            // routerLink: './agencia-tecnica',
-            command: () => {
-              this.messageService.add({
-                severity: 'info',
-                summary: 'Planes de Servicio',
-                detail: 'Funcionalidad en desarrollo',
-                life: 3000,
-              });
-            },
-          },
-          {
-            label: 'Ordenes de Compras',
-            icon: 'pi pi-lightbulb', // planes/servicios empresariales o residenciales
-            // routerLink: './ejecucion-orden',
-            command: () => {
-              this.messageService.add({
-                severity: 'info',
-                summary: 'Planes de Servicio',
-                detail: 'Funcionalidad en desarrollo',
-                life: 3000,
-              });
-            },
-          },
-        ],
-      },
-      {
         label: 'Mantenimientos',
         icon: 'pi pi-cog', // configuración general
         items: [
@@ -696,6 +489,32 @@ export class MenuBar {
                 life: 3000,
               });
             },
+          },
+        ],
+      },
+      {
+        label: 'Facturación',
+        icon: 'pi pi-receipt',
+        items: [
+          {
+            label: 'Productos',
+            icon: 'pi pi-box',
+            routerLink: './facturacion-productos',
+          },
+          {
+            label: 'Servicios',
+            icon: 'pi pi-briefcase',
+            routerLink: './facturacion-servicios',
+          },
+          {
+            label: 'Clientes',
+            icon: 'pi pi-users',
+            routerLink: './clientes',
+          },
+          {
+            label: 'Ventas',
+            icon: 'pi pi-shopping-cart',
+            routerLink: './facturacion-ventas',
           },
         ],
       },

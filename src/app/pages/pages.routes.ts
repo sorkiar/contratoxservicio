@@ -121,5 +121,25 @@ export const pagesRoutes: Routes = [
         './gestionRecaudaciones/validacion-vauchers/validacion-vauchers'
       ).then((m) => m.ValidacionVauchers),
   },
+  {
+    path: 'facturacion-productos',
+    loadComponent: () =>
+      import('./facturacion/productos/productos').then((m) => m.Productos),
+  },
+  {
+    path: 'facturacion-servicios',
+    loadComponent: () =>
+      import('./facturacion/servicios/servicios').then((m) => m.Servicios),
+  },
+  {
+    path: 'facturacion-destinatarios',
+    loadComponent: () =>
+      import('./facturacion/destinatarios/destinatarios').then((m) => m.Destinatarios),
+  },
+  {
+    path: 'facturacion-ventas',
+    loadComponent: () =>
+      import('./facturacion/ventas/ventas').then((m) => m.Ventas),
+  },
   { path: '**', redirectTo: 'login' },
 ];

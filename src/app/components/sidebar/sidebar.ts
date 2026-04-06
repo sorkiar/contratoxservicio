@@ -61,59 +61,14 @@ export class Sidebar {
   ngOnInit() {
     this.items = [
       {
-        label: 'Gestión de Clientes',
-        icon: 'pi pi-users',
+        label: 'Gestión de Contratos',
+        icon: 'pi pi-file-edit',
         items: [
-          {
-            label: 'Registro Clientes',
-            icon: 'pi pi-plus',
-            routerLink: './clientes',
-          },
-          // {
-          //   label: 'Asignación de Plan',
-          //   icon: 'pi pi-check-circle',
-          // },
-          // {
-          //   label: 'Estado del Servicio',
-          //   icon: 'pi pi-info-circle',
-          // },
-          // {
-          //   label: 'Configuración Técnica del Servicio',
-          //   icon: 'pi pi-cog',
-          // },
-          // {
-          //   label: 'Adjuntos',
-          //   icon: 'pi pi-paperclip',
-          // },
-          // {
-          //   label: 'Historial de Cambios',
-          //   icon: 'pi pi-history',
-          // },
-          // {
-          //   label: 'Búsqueda y Filtros',
-          //   icon: 'pi pi-filter',
-          // },
-          // {
-          //   label: 'Integración con mapa',
-          //   icon: 'pi pi-map', // mapa
-          // },
-          // {
-          //   label: 'Botón para Corte/Activación',
-          //   icon: 'pi pi-power-off',
-          // },
           {
             label: 'Contrato por Servicio',
             icon: 'pi pi-file',
             routerLink: './contrato-servicio',
           },
-          // {
-          //   label: 'Gestión de Clientes y Servicios',
-          //   icon: 'pi pi-users',
-          // },
-          // {
-          //   label: 'Gestión de Servicios Contratados',
-          //   icon: 'pi pi-briefcase',
-          // },
         ],
       },
       {

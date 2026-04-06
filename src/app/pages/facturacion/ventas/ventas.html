@@ -1,0 +1,509 @@
+@if (spinner) { <app-carga></app-carga> }
+<p-toast></p-toast>
+
+<!-- ═══════════════════════════ LISTADO ═══════════════════════════ -->
+<div class="p-4 sm:p-6 lg:p-8 bg-white rounded-xl shadow-lg border border-gray-200">
+  <p-fieldset>
+    <ng-template #header>
+      <div class="flex items-center gap-4 px-6 py-4 bg-indigo-100 rounded-t-xl border-b border-indigo-300">
+        <i class="pi pi-receipt text-indigo-700" style="font-size:2.5rem"></i>
+        <span class="text-2xl font-bold text-indigo-800 tracking-wide">Ventas</span>
+      </div>
+    </ng-template>
+
+    <p-table #dt [value]="listaVentas()" dataKey="id" [rowHover]="true" [rows]="10"
+      [paginator]="true" [loading]="loading" [showCurrentPageReport]="true"
+      currentPageReportTemplate="Se encontraron {first} de {last} Total {totalRecords} Registros"
+      [rowsPerPageOptions]="[10,25,50]" [filterDelay]="0"
+      [globalFilterFields]="['clientName','clientDocNumber','saleStatus']"
+      [tableStyle]="{'max-width':'100%'}">
+
+      <ng-template #caption>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-2 py-4">
+          <p-iconfield iconPosition="left" class="w-full md:w-auto">
+            <p-inputicon><i class="pi pi-search text-indigo-600"></i></p-inputicon>
+            <input pInputText type="text" [(ngModel)]="searchValue"
+              (input)="dt.filterGlobal($event.target.value,'contains')"
+              placeholder="Buscar venta..."
+              class="w-full md:w-72 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 transition duration-300"/>
+          </p-iconfield>
+          <p-button label="Nueva Venta" icon="pi pi-plus"
+            styleClass="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all duration-300 hover:scale-105"
+            (click)="abrirNuevaVenta()"/>
+        </div>
+      </ng-template>
+
+      <ng-template #header>
+        <tr class="bg-indigo-200 text-indigo-900 text-sm font-semibold">
+          <th class="px-3 py-3">Comprobante</th>
+          <th pSortableColumn="saleDate" class="px-3 py-3">Fecha emisión <p-sortIcon field="saleDate"/></th>
+          <th pSortableColumn="clientName" class="px-3 py-3">Cliente <p-sortIcon field="clientName"/></th>
+          <th class="px-3 py-3">Estado</th>
+          <th class="px-3 py-3">Estado Sunat</th>
+          <th pSortableColumn="subtotalAmount" class="px-3 py-3">Subtotal <p-sortIcon field="subtotalAmount"/></th>
+          <th pSortableColumn="taxAmount" class="px-3 py-3">IGV <p-sortIcon field="taxAmount"/></th>
+          <th pSortableColumn="totalAmount" class="px-3 py-3">Total <p-sortIcon field="totalAmount"/></th>
+          <th class="px-3 py-3">Acciones</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #body let-venta>
+        <tr class="hover:bg-indigo-50 transition-colors duration-300">
+          <td class="font-mono text-sm">{{ getComprobante(venta) }}</td>
+          <td>{{ venta.saleDate }}</td>
+          <td>{{ venta.clientName }}</td>
+          <td>
+            <p-tag [value]="venta.saleStatus" [severity]="getSaleStatusSeverity(venta.saleStatus)"/>
+          </td>
+          <td>
+            @if (venta.documents?.length) {
+              <p-tag [value]="venta.documents[0].status" [severity]="getSunatStatusSeverity(venta.documents[0].status)"/>
+            } @else { <span class="text-gray-400">—</span> }
+          </td>
+          <td>{{ venta.subtotalAmount | number:'1.2-2' }}</td>
+          <td>{{ venta.taxAmount | number:'1.2-2' }}</td>
+          <td class="font-semibold">{{ venta.totalAmount | number:'1.2-2' }}</td>
+          <td class="flex gap-2">
+            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true"
+              pTooltip="Ver detalle" (click)="verDetalle(venta)"
+              styleClass="hover:scale-105 transition-transform"/>
+            <p-button icon="pi pi-file-pdf" severity="danger" [rounded]="true" [outlined]="true"
+              pTooltip="Descargar PDF" tooltipPosition="left" (click)="abrirPdf(venta)"
+              styleClass="hover:scale-105 transition-transform"/>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr><td colspan="9" class="text-center text-gray-400 italic py-4">No hay ventas disponibles.</td></tr>
+      </ng-template>
+    </p-table>
+  </p-fieldset>
+</div>
+
+<!-- ═══════════════════════════ FORM NUEVA VENTA ═══════════════════════════ -->
+<p-dialog [(visible)]="ventaFormDialog" [style]="{width:'95vw',maxWidth:'1400px'}"
+  [modal]="true" [maximizable]="true" [breakpoints]="{'960px':'100vw'}">
+  <ng-template pTemplate="header">
+    <div class="flex items-center gap-3">
+      <i class="pi pi-receipt text-indigo-600" style="font-size:1.5rem"></i>
+      <div>
+        <div class="text-lg font-bold text-indigo-700">Registro de Venta</div>
+        <div class="text-xs text-gray-500">Selecciona cliente, agrega productos/servicios y finaliza la venta.</div>
+      </div>
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="content">
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
+
+      <!-- ── COLUMNA IZQUIERDA ── -->
+      <div class="flex flex-col gap-4">
+
+        <!-- Cliente -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-gray-700">Cliente</span>
+            <div class="flex gap-2">
+              <p-button label="Buscar" icon="pi pi-search" size="small" [outlined]="true" (click)="abrirBuscarCliente()"/>
+              <p-button label="Limpiar" icon="pi pi-times" size="small" severity="secondary" [outlined]="true" (click)="limpiarCliente()"/>
+            </div>
+          </div>
+          @if (clienteSeleccionado()) {
+            <div class="bg-indigo-50 border border-indigo-200 rounded p-3 text-sm">
+              <div class="font-semibold text-indigo-800">{{ clienteSeleccionado()!.nombre_completo }}</div>
+              <div class="text-gray-500">{{ clienteSeleccionado()!.tipodocidenabr }}: {{ clienteSeleccionado()!.nrodocident }}</div>
+              @if (clienteSeleccionado()!.direccion) {
+                <div class="text-gray-500 text-xs mt-1">{{ clienteSeleccionado()!.direccion }}</div>
+              }
+            </div>
+          } @else {
+            <div class="border border-dashed border-gray-300 rounded p-3 text-sm text-gray-400">Sin cliente seleccionado</div>
+          }
+        </div>
+
+        <!-- Observaciones -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="font-semibold text-gray-700 mb-2">Observaciones</div>
+          <textarea pInputTextarea [(ngModel)]="observaciones" rows="3"
+            placeholder="Observaciones opcionales..." class="w-full"></textarea>
+        </div>
+
+        <!-- Detalle de venta -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-1">
+            <div>
+              <div class="font-semibold text-gray-700">Detalle de venta</div>
+              <div class="text-xs text-gray-400">Agrega varios productos o servicios. Para servicios no registrados, usa "Servicio rápido".</div>
+            </div>
+            <div class="flex gap-2 flex-wrap justify-end">
+              <p-button label="+ Agregar producto" size="small"
+                styleClass="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3 py-1.5 text-sm"
+                (click)="abrirAgregarProducto()"/>
+              <p-button label="+ Agregar servicio" size="small"
+                styleClass="bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-3 py-1.5 text-sm"
+                (click)="abrirAgregarServicio()"/>
+              <p-button label="⚡ Servicio rápido" size="small"
+                styleClass="bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg px-3 py-1.5 text-sm"
+                (click)="abrirServicioRapido()"/>
+            </div>
+          </div>
+
+          @if (items().length === 0) {
+            <div class="text-center text-gray-400 italic py-6 border-t border-gray-100 mt-3">
+              Aún no hay ítems agregados.
+            </div>
+          } @else {
+            <table class="w-full mt-3 text-sm">
+              <thead>
+                <tr class="border-b border-gray-200 text-gray-500 text-xs uppercase">
+                  <th class="text-left py-2 px-1">Tipo</th>
+                  <th class="text-left py-2 px-1">Ítem</th>
+                  <th class="text-right py-2 px-1">Precio</th>
+                  <th class="text-right py-2 px-1 w-20">Cant.</th>
+                  <th class="text-right py-2 px-1 w-20">Dscto %</th>
+                  <th class="text-right py-2 px-1">Subtotal</th>
+                  <th class="py-2 px-1 w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of items(); track $index) {
+                  <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-2 px-1">
+                      <span class="px-2 py-0.5 rounded text-xs font-medium"
+                        [ngClass]="{
+                          'bg-blue-100 text-blue-700': item.itemType==='PRODUCT',
+                          'bg-purple-100 text-purple-700': item.itemType==='SERVICE',
+                          'bg-yellow-100 text-yellow-700': item.itemType==='QUICK_SERVICE'
+                        }">
+                        {{ getItemTypeLabel(item.itemType) }}
+                      </span>
+                    </td>
+                    <td class="py-2 px-1">{{ item.description }}</td>
+                    <td class="py-2 px-1 text-right">
+                      <p-inputNumber [(ngModel)]="item.unitPrice" (ngModelChange)="actualizarItem()"
+                        [minFractionDigits]="2" [maxFractionDigits]="2"
+                        inputStyleClass="w-24 text-right text-sm" [min]="0"/>
+                    </td>
+                    <td class="py-2 px-1 text-right">
+                      <p-inputNumber [(ngModel)]="item.quantity" (ngModelChange)="actualizarItem()"
+                        [minFractionDigits]="0" [maxFractionDigits]="3"
+                        inputStyleClass="w-16 text-right text-sm" [min]="0.001"/>
+                    </td>
+                    <td class="py-2 px-1 text-right">
+                      <p-inputNumber [(ngModel)]="item.discountPercentage" (ngModelChange)="actualizarItem()"
+                        [minFractionDigits]="0" [maxFractionDigits]="2"
+                        inputStyleClass="w-16 text-right text-sm" [min]="0" [max]="100"/>
+                    </td>
+                    <td class="py-2 px-1 text-right font-medium">{{ item.subtotal | number:'1.2-2' }}</td>
+                    <td class="py-2 px-1 text-center">
+                      <button class="text-red-400 hover:text-red-600" (click)="eliminarItem($index)">
+                        <i class="pi pi-trash text-xs"></i>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+
+        <!-- Orden de compra -->
+        <!-- <div class="border border-gray-200 rounded-lg p-4">
+          <div class="text-xs font-semibold uppercase text-gray-500 mb-2 tracking-wide">Orden de Compra</div>
+          <input pInputText [(ngModel)]="purchaseOrder" placeholder="Ej: OC-2026-001" class="w-full"/>
+        </div> -->
+      </div>
+
+      <!-- ── COLUMNA DERECHA ── -->
+      <div class="flex flex-col gap-4">
+
+        <!-- Totales -->
+        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <div class="font-semibold text-gray-700 mb-3">Totales</div>
+          <div class="flex justify-between text-sm py-1">
+            <span class="text-gray-500">Subtotal</span>
+            <span>S/ {{ subtotalVenta() | number:'1.2-2' }}</span>
+          </div>
+          <div class="flex justify-between text-sm py-1">
+            <span class="text-gray-500">IGV (18%)</span>
+            <span>S/ {{ igvVenta() | number:'1.2-2' }}</span>
+          </div>
+          <p-divider styleClass="my-2"/>
+          <div class="flex justify-between font-bold text-base">
+            <span>Total</span>
+            <span class="text-indigo-700">S/ {{ totalVenta() | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <!-- Forma de pago -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="font-semibold text-gray-700 mb-3">Forma de pago</div>
+          <div class="flex gap-2 mb-3">
+            <button class="flex-1 py-1.5 rounded text-sm font-medium transition-colors"
+              [ngClass]="paymentType==='CONTADO' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+              (click)="paymentType='CONTADO'; pagos.set([]); cuotas.set([])">Contado</button>
+            <button class="flex-1 py-1.5 rounded text-sm font-medium transition-colors"
+              [ngClass]="paymentType==='CREDITO' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+              (click)="paymentType='CREDITO'; pagos.set([]); cuotas.set([])">Crédito</button>
+          </div>
+
+          @if (paymentType === 'CONTADO') {
+            @for (pago of pagos(); track $index) {
+              <div class="mb-3 p-3 bg-gray-50 rounded border border-gray-200">
+                <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Pago {{ $index + 1 }}</div>
+                <div class="flex flex-col gap-2">
+                  <p-select [options]="metodoPago" [(ngModel)]="pago.paymentMethodId"
+                    optionLabel="nombre" optionValue="id" appendTo="body"
+                    placeholder="Método de pago" class="w-full" (onChange)="onMetodoPagoChange(pago)"/>
+                  <p-inputNumber [(ngModel)]="pago.amount" placeholder="Monto pagado"
+                    [minFractionDigits]="2" [maxFractionDigits]="2" class="w-full" [min]="0"/>
+                  <input pInputText [(ngModel)]="pago.referenceNumber" placeholder="Referencia (opcional)" class="w-full text-sm"/>
+                  <button class="text-red-500 text-xs text-left hover:underline" (click)="eliminarPago($index)">
+                    <i class="pi pi-trash"></i> Eliminar pago
+                  </button>
+                </div>
+              </div>
+            }
+            <button class="w-full py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+              (click)="agregarPago()">+ Agregar pago</button>
+            <div class="mt-3 flex justify-between text-sm"><span class="text-gray-500">Total pagado</span><span>S/ {{ totalPagado() | number:'1.2-2' }}</span></div>
+            <div class="flex justify-between text-sm"><span class="text-gray-500">Vuelto</span><span>S/ {{ vuelto() | number:'1.2-2' }}</span></div>
+          }
+
+          @if (paymentType === 'CREDITO') {
+            @for (cuota of cuotas(); track $index) {
+              <div class="mb-3 p-3 bg-gray-50 rounded border border-gray-200">
+                <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Cuota {{ $index + 1 }}</div>
+                <div class="flex flex-col gap-2">
+                  <p-datepicker [(ngModel)]="cuota.dueDate" placeholder="Fecha vencimiento"
+                    dateFormat="yy-mm-dd" appendTo="body" class="w-full"/>
+                  <p-inputNumber [(ngModel)]="cuota.amount" placeholder="Monto (S/)"
+                    [minFractionDigits]="2" [maxFractionDigits]="2" class="w-full" [min]="0"/>
+                  <button class="text-red-500 text-xs text-left hover:underline" (click)="eliminarCuota($index)">
+                    <i class="pi pi-trash"></i> Eliminar cuota
+                  </button>
+                </div>
+              </div>
+            }
+            <button class="w-full py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+              (click)="agregarCuota()">+ Agregar cuota</button>
+            <div class="mt-3 flex justify-between text-sm"><span class="text-gray-500">Total cuotas</span><span>S/ {{ totalCuotas() | number:'1.2-2' }}</span></div>
+          }
+        </div>
+
+        <!-- Comprobante -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="font-semibold text-gray-700 mb-3">Comprobante</div>
+          <div class="text-xs text-gray-500 mb-1">Tipo de documento</div>
+          <div class="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm font-medium text-gray-700">
+            {{ tipoComprobante() }}
+          </div>
+          <div class="text-xs text-gray-400 mt-2">Se genera automáticamente al emitir</div>
+        </div>
+      </div>
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 p-2 border-t border-gray-200 bg-gray-50">
+      <p-button label="Cancelar" icon="pi pi-ban"
+        styleClass="p-button-secondary p-button-outlined" (click)="ventaFormDialog=false"/>
+      <p-button label="Finalizar y emitir" icon="pi pi-send"
+        styleClass="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg"
+        [disabled]="spinner"
+        (click)="finalizarVenta()"/>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ BUSCAR CLIENTE ═══════════════════════════ -->
+<p-dialog [(visible)]="buscarClienteDialog" header="Buscar cliente"
+  [style]="{width:'520px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Filtra por nombre / razón social / documento</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [ngModel]="searchCliente()" (ngModelChange)="searchCliente.set($event)"
+      placeholder="Ej: Pérez / 12345678 / 20123456789" class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-3 max-h-72 overflow-y-auto">
+    @for (c of listaClientesFiltrada(); track c.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-gray-800 text-sm">{{ c.nombre_completo }}</div>
+          <div class="text-xs text-gray-500">{{ c.tipodocidenabr }}: {{ c.nrodocident }}</div>
+          @if (c.direccion) { <div class="text-xs text-gray-400 truncate">{{ c.direccion }}</div> }
+        </div>
+        <p-button label="Seleccionar" size="small" (click)="seleccionarCliente(c)"/>
+      </div>
+    }
+    @if (listaClientesFiltrada().length === 0) {
+      <div class="text-center text-gray-400 italic py-4 text-sm">No se encontraron clientes.</div>
+    }
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="buscarClienteDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ AGREGAR PRODUCTO ═══════════════════════════ -->
+<p-dialog [(visible)]="agregarProductoDialog" header="Agregar producto"
+  [style]="{width:'560px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Buscar producto por SKU / nombre</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [(ngModel)]="searchProducto" (ngModelChange)="productoPage=1"
+      placeholder="Ej: MM-EST-0001 / Baranda / Tolva" class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-2 min-h-[200px]">
+    @for (p of productosPagina(); track p.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+        (click)="agregarProducto(p)">
+        <div>
+          <div class="font-semibold text-sm">{{ p.sku }} — {{ p.name }}</div>
+          <div class="text-xs text-gray-500">{{ p.categoryName }}</div>
+        </div>
+        <span class="font-medium text-sm text-indigo-700">S/ {{ p.salePricePen | number:'1.2-2' }}</span>
+      </div>
+    }
+    @if (productosFiltrados().length === 0) {
+      <div class="text-center text-gray-400 italic py-6 text-sm">No hay productos disponibles.</div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+    <span>{{ (productoPage-1)*5+1 }}-{{ minVal(productoPage*5, productosFiltrados().length) }} de {{ productosFiltrados().length }}</span>
+    <div class="flex gap-2">
+      <p-button icon="pi pi-chevron-left" [rounded]="true" [text]="true" size="small"
+        [disabled]="productoPage===1" (click)="productoPage=productoPage-1"/>
+      <span>{{ productoPage }} / {{ totalProductoPages() }}</span>
+      <p-button icon="pi pi-chevron-right" [rounded]="true" [text]="true" size="small"
+        [disabled]="productoPage>=totalProductoPages()" (click)="productoPage=productoPage+1"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="agregarProductoDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ AGREGAR SERVICIO ═══════════════════════════ -->
+<p-dialog [(visible)]="agregarServicioDialog" header="Agregar servicio"
+  [style]="{width:'560px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Buscar servicio por SKU / nombre</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [(ngModel)]="searchServicio" (ngModelChange)="servicioPag=1"
+      placeholder="Ej: SRV-FAB-0001 / Soldadura / Instalación" class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-2 min-h-[200px]">
+    @for (s of serviciosPagina(); track s.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+        (click)="agregarServicio(s)">
+        <div>
+          <div class="font-semibold text-sm">{{ s.sku }} — {{ s.name }}</div>
+          <div class="text-xs text-gray-500">{{ s.serviceCategoryName }}</div>
+        </div>
+        <span class="font-medium text-sm text-purple-700">S/ {{ s.pricePen | number:'1.2-2' }}</span>
+      </div>
+    }
+    @if (serviciosFiltrados().length === 0) {
+      <div class="text-center text-gray-400 italic py-6 text-sm">No hay servicios disponibles.</div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+    <span>{{ (servicioPag-1)*5+1 }}-{{ minVal(servicioPag*5, serviciosFiltrados().length) }} de {{ serviciosFiltrados().length }}</span>
+    <div class="flex gap-2">
+      <p-button icon="pi pi-chevron-left" [rounded]="true" [text]="true" size="small"
+        [disabled]="servicioPag===1" (click)="servicioPag=servicioPag-1"/>
+      <span>{{ servicioPag }} / {{ totalServicioPages() }}</span>
+      <p-button icon="pi pi-chevron-right" [rounded]="true" [text]="true" size="small"
+        [disabled]="servicioPag>=totalServicioPages()" (click)="servicioPag=servicioPag+1"/>
+    </div>
+  </div>
+  <div class="mt-2 text-xs text-yellow-600">
+    ¿No existe el servicio? Usa <strong>⚡ Servicio rápido</strong> para crearlo y agregarlo al instante.
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="agregarServicioDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ SERVICIO RÁPIDO ═══════════════════════════ -->
+<p-dialog [(visible)]="servicioRapidoDialog" header="Servicio rápido"
+  [style]="{width:'440px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-4">Agrega un servicio personalizado directo a esta venta.</div>
+  <div class="flex flex-col gap-3">
+    <div>
+      <label class="block text-sm font-medium mb-1">Nombre del servicio <span class="text-red-500">*</span></label>
+      <input pInputText [(ngModel)]="servicioRapidoNombre" placeholder="Ej: Soldadura TIG inoxidable" class="w-full"/>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Precio <span class="text-red-500">*</span></label>
+      <p-inputNumber [(ngModel)]="servicioRapidoPrecio" [minFractionDigits]="2" [maxFractionDigits]="2"
+        placeholder="0.00" class="w-full" [min]="0"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-2">
+      <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="servicioRapidoDialog=false"/>
+      <p-button label="Crear y agregar" icon="pi pi-plus" (click)="agregarServicioRapido()"/>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ DETALLE VENTA ═══════════════════════════ -->
+<p-dialog [(visible)]="detalleDialog" header="Detalle de Venta"
+  [style]="{width:'70vw',maxWidth:'900px'}" [modal]="true" [maximizable]="true" appendTo="body">
+  @if (ventaDetalle()) {
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
+      <div><span class="text-gray-500 block text-xs">Comprobante</span><strong class="font-mono">{{ getComprobante(ventaDetalle()!) }}</strong></div>
+      <div><span class="text-gray-500 block text-xs">Fecha</span>{{ ventaDetalle()!.saleDate }}</div>
+      <div><span class="text-gray-500 block text-xs">Cliente</span>{{ ventaDetalle()!.clientName }}</div>
+      <div><span class="text-gray-500 block text-xs">Estado</span>
+        <p-tag [value]="ventaDetalle()!.saleStatus" [severity]="getSaleStatusSeverity(ventaDetalle()!.saleStatus)"/>
+      </div>
+      <div><span class="text-gray-500 block text-xs">Forma de pago</span>{{ ventaDetalle()!.paymentType }}</div>
+      <div><span class="text-gray-500 block text-xs">Total</span><strong class="text-indigo-700">S/ {{ ventaDetalle()!.totalAmount | number:'1.2-2' }}</strong></div>
+    </div>
+
+    <p-divider/>
+    <div class="font-semibold mb-2">Ítems</div>
+    <table class="w-full text-sm">
+      <thead><tr class="border-b text-xs text-gray-500 uppercase">
+        <th class="text-left py-1">Descripción</th>
+        <th class="text-right py-1">Precio</th>
+        <th class="text-right py-1">Cant.</th>
+        <th class="text-right py-1">Dscto%</th>
+        <th class="text-right py-1">Subtotal</th>
+      </tr></thead>
+      <tbody>
+        @for (item of ventaDetalle()!.items; track item.id) {
+          <tr class="border-b border-gray-100">
+            <td class="py-1">{{ item.description }}</td>
+            <td class="py-1 text-right">{{ item.unitPrice | number:'1.2-2' }}</td>
+            <td class="py-1 text-right">{{ item.quantity }}</td>
+            <td class="py-1 text-right">{{ item.discountPercentage }}%</td>
+            <td class="py-1 text-right font-medium">{{ item.subtotalAmount | number:'1.2-2' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="flex justify-end gap-6 mt-3 text-sm">
+      <span class="text-gray-500">Subtotal: <strong>S/ {{ ventaDetalle()!.subtotalAmount | number:'1.2-2' }}</strong></span>
+      <span class="text-gray-500">IGV: <strong>S/ {{ ventaDetalle()!.taxAmount | number:'1.2-2' }}</strong></span>
+      <span class="text-gray-700 font-bold">Total: S/ {{ ventaDetalle()!.totalAmount | number:'1.2-2' }}</span>
+    </div>
+  }
+  <ng-template pTemplate="footer">
+    <p-button label="Cerrar" severity="secondary" [outlined]="true" (click)="detalleDialog=false"/>
+    @if (ventaDetalle()?.documents?.[0]?.pdfUrl) {
+      <p-button label="PDF" icon="pi pi-file-pdf" severity="danger" (click)="abrirPdf(ventaDetalle()!)"/>
+    }
+  </ng-template>
+</p-dialog>

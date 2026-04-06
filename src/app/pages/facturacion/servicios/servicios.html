@@ -1,0 +1,256 @@
+@if (spinner) {
+  <app-carga></app-carga>
+}
+<p-toast></p-toast>
+
+<div class="p-4 sm:p-6 lg:p-8 bg-white rounded-xl shadow-lg border border-gray-200">
+  <p-fieldset>
+    <ng-template #header>
+      <div class="flex items-center gap-4 px-6 py-4 bg-purple-100 rounded-t-xl border-b border-purple-300">
+        <i class="pi pi-briefcase text-purple-700" style="font-size: 2.5rem"></i>
+        <span class="text-2xl font-bold text-purple-800 tracking-wide">Listado de Servicios</span>
+      </div>
+    </ng-template>
+
+    <p-table
+      #dt
+      [value]="listaServicios()"
+      dataKey="id"
+      [rowHover]="true"
+      [rows]="10"
+      [paginator]="true"
+      [loading]="loading"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Se encontraron {first} de {last} Total {totalRecords} Registros"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      [filterDelay]="0"
+      [globalFilterFields]="['sku', 'name', 'serviceCategoryName']"
+      [tableStyle]="{ 'max-width': '100%' }"
+    >
+      <ng-template #caption>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-2 py-4">
+          <p-iconfield iconPosition="left" class="w-full md:w-auto">
+            <p-inputicon><i class="pi pi-search text-purple-600"></i></p-inputicon>
+            <input
+              pInputText
+              type="text"
+              [(ngModel)]="searchValue"
+              (input)="dt.filterGlobal($event.target.value, 'contains')"
+              placeholder="Buscar servicio..."
+              class="w-full md:w-72 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 transition duration-300"
+            />
+          </p-iconfield>
+          <p-button
+            label="Nuevo Servicio"
+            icon="pi pi-plus"
+            class="transition-all duration-300 hover:scale-105"
+            styleClass="px-4 py-2 text-white bg-purple-600 hover:bg-purple-700 rounded-lg"
+            (click)="openServicioDialog()"
+          />
+        </div>
+      </ng-template>
+
+      <ng-template #header>
+        <tr class="bg-purple-200 text-purple-900 text-sm font-semibold">
+          <th pSortableColumn="sku" class="px-3 py-3">SKU <p-sortIcon field="sku" /></th>
+          <th pSortableColumn="name" class="px-3 py-3">Nombre <p-sortIcon field="name" /></th>
+          <th pSortableColumn="serviceCategoryName" class="px-3 py-3">Categoría <p-sortIcon field="serviceCategoryName" /></th>
+          <th pSortableColumn="pricePen" class="px-3 py-3">Precio (S/.) <p-sortIcon field="pricePen" /></th>
+          <th pSortableColumn="estimatedTime" class="px-3 py-3">T. Estimado <p-sortIcon field="estimatedTime" /></th>
+          <th class="px-3 py-3">Estado</th>
+          <th class="px-3 py-3">Acción</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #body let-servicio>
+        <tr class="hover:bg-purple-50 transition-colors duration-300">
+          <td>{{ servicio.sku }}</td>
+          <td>{{ servicio.name }}</td>
+          <td>{{ servicio.serviceCategoryName }}</td>
+          <td>{{ servicio.pricePen | number:'1.2-2' }}</td>
+          <td>{{ servicio.estimatedTime }}</td>
+          <td>
+            <p-tag
+              [value]="servicio.status === 1 ? 'Activo' : 'Inactivo'"
+              [severity]="servicio.status === 1 ? 'success' : 'danger'"
+            />
+          </td>
+          <td class="flex gap-2">
+            <p-button
+              icon="pi pi-pencil"
+              [rounded]="true"
+              [outlined]="true"
+              pTooltip="Editar servicio"
+              (click)="editServicio(servicio)"
+              styleClass="hover:scale-105 transition-transform"
+            />
+            @if (servicio.status === 1) {
+              <p-button
+                icon="pi pi-trash"
+                severity="danger"
+                [rounded]="true"
+                [outlined]="true"
+                pTooltip="Desactivar"
+                tooltipPosition="left"
+                (click)="desactivarServicio(servicio)"
+                styleClass="hover:scale-105 transition-transform"
+              />
+            }
+            @if (servicio.status === 0) {
+              <p-button
+                icon="pi pi-check"
+                severity="success"
+                [rounded]="true"
+                [outlined]="true"
+                pTooltip="Activar"
+                tooltipPosition="left"
+                (click)="activarServicio(servicio)"
+                styleClass="hover:scale-105 transition-transform"
+              />
+            }
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="7" class="text-center text-gray-400 italic py-4">No hay servicios disponibles.</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-fieldset>
+</div>
+
+<!-- Dialog Servicio -->
+<p-dialog
+  [(visible)]="servicioDialog"
+  [style]="{ width: '75vw', maxWidth: '900px' }"
+  [modal]="true"
+  [maximizable]="true"
+  [breakpoints]="{ '960px': '85vw' }"
+>
+  <ng-template pTemplate="header">
+    <div class="flex items-center gap-3">
+      <i class="pi pi-briefcase text-purple-600" style="font-size: 1.5rem"></i>
+      <span class="text-lg font-bold text-purple-700">Datos del Servicio</span>
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="content">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+      <!-- Nombre -->
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium mb-1">Nombre <span class="text-red-500">*</span></label>
+        <input pInputText [(ngModel)]="servicioModel().name" placeholder="Nombre del servicio" class="w-full" />
+      </div>
+
+      <!-- SKU -->
+      <div>
+        <label class="block text-sm font-medium mb-1">SKU</label>
+        <input pInputText [(ngModel)]="servicioModel().sku" placeholder="Cargando SKU..." class="w-full" [disabled]="true" />
+      </div>
+
+      <!-- Categoría -->
+      <div>
+        <label class="block text-sm font-medium mb-1">Categoría <span class="text-red-500">*</span></label>
+        <p-select
+          [options]="listaCategorias()"
+          [(ngModel)]="servicioModel().serviceCategoryId"
+          optionLabel="name"
+          optionValue="id"
+          appendTo="body"
+          [filter]="true"
+          placeholder="Selecciona categoría"
+          class="w-full"
+        />
+      </div>
+
+      <!-- Precio -->
+      <div>
+        <label class="block text-sm font-medium mb-1">Precio (S/.)</label>
+        <p-inputNumber
+          [(ngModel)]="servicioModel().pricePen"
+          [minFractionDigits]="2"
+          [maxFractionDigits]="2"
+          placeholder="0.00"
+          class="w-full"
+        />
+      </div>
+
+      <!-- Tiempo Estimado -->
+      <div>
+        <label class="block text-sm font-medium mb-1">Tiempo Estimado</label>
+        <input pInputText [(ngModel)]="servicioModel().estimatedTime" placeholder="Ej: 2 horas" class="w-full" />
+      </div>
+
+      <!-- Entrega Esperada -->
+      <div>
+        <label class="block text-sm font-medium mb-1">Entrega Esperada</label>
+        <input pInputText [(ngModel)]="servicioModel().expectedDelivery" placeholder="Ej: 1 día hábil" class="w-full" />
+      </div>
+
+      <!-- Requiere Materiales / Requiere Especificación -->
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2 mt-4">
+          <p-checkbox [(ngModel)]="servicioModel().requiresMaterials" [binary]="true" inputId="reqMat" />
+          <label for="reqMat" class="text-sm font-medium">Requiere Materiales</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <p-checkbox [(ngModel)]="servicioModel().requiresSpecification" [binary]="true" inputId="reqSpec" />
+          <label for="reqSpec" class="text-sm font-medium">Requiere Especificación</label>
+        </div>
+      </div>
+
+      <!-- Descripción Corta -->
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium mb-1">Descripción Corta</label>
+        <textarea pInputTextarea [(ngModel)]="servicioModel().shortDescription" rows="2" placeholder="Descripción breve" class="w-full"></textarea>
+      </div>
+
+      <!-- Incluye -->
+      <div>
+        <label class="block text-sm font-medium mb-1">Incluye</label>
+        <textarea pInputTextarea [(ngModel)]="servicioModel().includesDescription" rows="2" placeholder="Qué incluye el servicio" class="w-full"></textarea>
+      </div>
+
+      <!-- Excluye -->
+      <div>
+        <label class="block text-sm font-medium mb-1">Excluye</label>
+        <textarea pInputTextarea [(ngModel)]="servicioModel().excludesDescription" rows="2" placeholder="Qué no incluye el servicio" class="w-full"></textarea>
+      </div>
+
+      <!-- Condiciones -->
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium mb-1">Condiciones</label>
+        <textarea pInputTextarea [(ngModel)]="servicioModel().conditions" rows="2" placeholder="Condiciones del servicio" class="w-full"></textarea>
+      </div>
+
+      <!-- Descripción Detallada -->
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium mb-1">Descripción Detallada</label>
+        <textarea pInputTextarea [(ngModel)]="servicioModel().detailedDescription" rows="3" placeholder="Descripción detallada del servicio" class="w-full"></textarea>
+      </div>
+
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 p-2 border-t border-gray-200 bg-gray-50">
+      <p-button
+        label="Cancelar"
+        icon="pi pi-ban"
+        styleClass="p-button-secondary p-button-outlined shadow-sm hover:shadow-md transition-all"
+        (click)="servicioDialog = false"
+      />
+      <p-button
+        label="Guardar"
+        icon="pi pi-save"
+        styleClass="p-button-success shadow-sm hover:shadow-md transition-all"
+        (click)="saveServicio()"
+      />
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-confirmDialog [style]="{ width: '450px' }" />
