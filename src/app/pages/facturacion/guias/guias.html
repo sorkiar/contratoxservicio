@@ -1,0 +1,661 @@
+@if (spinner) { <app-carga></app-carga> }
+<p-toast></p-toast>
+
+<!-- ═══════════════════════════ LISTADO ═══════════════════════════ -->
+<div class="p-4 sm:p-6 lg:p-8 bg-white rounded-xl shadow-lg border border-gray-200">
+  <p-fieldset>
+    <ng-template #header>
+      <div class="flex items-center gap-4 px-6 py-4 bg-teal-100 rounded-t-xl border-b border-teal-300">
+        <i class="pi pi-truck text-teal-700" style="font-size:2.5rem"></i>
+        <span class="text-2xl font-bold text-teal-800 tracking-wide">Guías de Remisión</span>
+      </div>
+    </ng-template>
+
+    <p-table #dt [value]="listaGuias()" dataKey="id" [rowHover]="true" [rows]="10"
+      [paginator]="true" [loading]="loading" [showCurrentPageReport]="true"
+      currentPageReportTemplate="Se encontraron {first} de {last} Total {totalRecords} Registros"
+      [rowsPerPageOptions]="[10,25,50]" [filterDelay]="0"
+      [globalFilterFields]="['transferReason','transportMode']"
+      [tableStyle]="{'max-width':'100%'}">
+
+      <ng-template #caption>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-2 py-4">
+          <p-iconfield iconPosition="left" class="w-full md:w-auto">
+            <p-inputicon><i class="pi pi-search text-teal-600"></i></p-inputicon>
+            <input pInputText type="text" [(ngModel)]="searchValue"
+              (input)="dt.filterGlobal($event.target.value,'contains')"
+              placeholder="Buscar guía..."
+              class="w-full md:w-72 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400 transition duration-300"/>
+          </p-iconfield>
+          <div class="flex gap-2">
+            <p-button label="Nueva Guía" icon="pi pi-plus"
+              styleClass="px-4 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-all duration-300 hover:scale-105"
+              (click)="abrirNuevaGuia()"/>
+            <p-button icon="pi pi-refresh" label="Actualizar" size="small" [outlined]="true"
+              (click)="cargarGuias()" [disabled]="spinner"/>
+          </div>
+        </div>
+      </ng-template>
+
+      <ng-template #header>
+        <tr class="bg-teal-200 text-teal-900 text-sm font-semibold">
+          <th class="px-3 py-3">Serie / N°</th>
+          <th class="px-3 py-3">Destinatario</th>
+          <th class="px-3 py-3">Motivo</th>
+          <th class="px-3 py-3">Transporte</th>
+          <th pSortableColumn="transferDate" class="px-3 py-3">Fecha traslado <p-sortIcon field="transferDate"/></th>
+          <th class="px-3 py-3">Estado SUNAT</th>
+          <th class="px-3 py-3">Acciones</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #body let-guia>
+        <tr class="hover:bg-teal-50 transition-colors duration-300">
+          <td class="font-mono text-sm px-3">
+            @if (guia.series && guia.sequence) {
+              <span class="font-semibold">{{ guia.series }}-{{ guia.sequence }}</span>
+            } @else {
+              <span class="text-gray-400 italic text-xs">Sin emitir</span>
+            }
+          </td>
+          <td class="px-3">
+            <div class="font-medium text-sm">{{ guia.clientName ?? '—' }}</div>
+          </td>
+          <td class="px-3 text-sm">{{ getTransferReasonLabel(guia.transferReason) }}</td>
+          <td class="px-3">
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+              [ngClass]="guia.transportMode === 'TRANSPORTE_PUBLICO'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-purple-100 text-purple-700'">
+              {{ getTransportModeLabel(guia.transportMode) }}
+            </span>
+          </td>
+          <td class="px-3 text-sm">{{ guia.transferDate }}</td>
+          <td class="px-3">
+            @if (guia.status) {
+              <p-tag [value]="guia.status" [severity]="getSunatSeverity(guia.status)"
+                pTooltip="{{ guia.sunatResponseCode ? '[' + guia.sunatResponseCode + '] ' + guia.sunatMessage : '' }}"
+                tooltipPosition="left"/>
+            } @else {
+              <span class="text-xs text-gray-400">—</span>
+            }
+          </td>
+          <td class="px-3 flex gap-2">
+            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true"
+              pTooltip="Ver detalle" (click)="verDetalle(guia)"
+              styleClass="hover:scale-105 transition-transform"/>
+            <p-button icon="pi pi-file-pdf" severity="danger" [rounded]="true" [outlined]="true"
+              pTooltip="Descargar PDF" tooltipPosition="left" (click)="abrirPdf(guia)"
+              styleClass="hover:scale-105 transition-transform"/>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr><td colspan="7" class="text-center text-gray-400 italic py-4">No hay guías de remisión disponibles.</td></tr>
+      </ng-template>
+    </p-table>
+  </p-fieldset>
+</div>
+
+<!-- ═══════════════════════════ FORM NUEVA GUÍA ═══════════════════════════ -->
+<p-dialog [(visible)]="guiaFormDialog" [style]="{width:'95vw',maxWidth:'1100px'}"
+  [modal]="true" [maximizable]="true" [breakpoints]="{'960px':'100vw'}">
+  <ng-template pTemplate="header">
+    <div class="flex items-center gap-3">
+      <i class="pi pi-truck text-teal-600" style="font-size:1.5rem"></i>
+      <div>
+        <div class="text-lg font-bold text-teal-700">Registrar Guía de Remisión</div>
+        <div class="text-xs text-gray-500">Completa los datos de traslado, transporte, destinatario y los ítems.</div>
+      </div>
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="content">
+    <div class="flex flex-col gap-5">
+
+      <!-- ── SECCIÓN 1: DATOS DEL TRASLADO ── -->
+      <div class="border border-gray-200 rounded-lg p-4">
+        <div class="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+          <i class="pi pi-info-circle text-teal-600"></i> Datos del traslado
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          <!-- Fecha de traslado -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de traslado <span class="text-red-500">*</span></label>
+            <input pInputText type="date" [(ngModel)]="transferDate" class="w-full"
+              [min]="'2020-01-01'"/>
+          </div>
+
+          <!-- Motivo de traslado -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Motivo de traslado <span class="text-red-500">*</span></label>
+            <p-select [options]="transferReasonOptions" [(ngModel)]="transferReason"
+              optionLabel="label" optionValue="value"
+              placeholder="Seleccionar motivo" appendTo="body" class="w-full"/>
+          </div>
+
+          <!-- Descripción motivo (solo OTROS) -->
+          @if (transferReason === 'OTROS') {
+            <div class="sm:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Descripción del motivo <span class="text-red-500">*</span></label>
+              <input pInputText [(ngModel)]="transferReasonDescription" placeholder="Detalle el motivo..." class="w-full"/>
+            </div>
+          }
+
+          <!-- Tipo de transporte -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de transporte <span class="text-red-500">*</span></label>
+            <p-select [options]="transportModeOptions" [(ngModel)]="transportMode"
+              optionLabel="label" optionValue="value"
+              placeholder="Seleccionar tipo" appendTo="body" class="w-full"
+              (onChange)="onTransportModeChange()"/>
+          </div>
+
+          <!-- Peso bruto -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Peso bruto (KGM) <span class="text-red-500">*</span></label>
+            <p-inputNumber [(ngModel)]="grossWeight" [minFractionDigits]="2" [maxFractionDigits]="2"
+              placeholder="Ej: 250.50" class="w-full" [min]="0"/>
+          </div>
+
+          <!-- Número de bultos -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Número de bultos</label>
+            <p-inputNumber [(ngModel)]="packageCount" [minFractionDigits]="0" [maxFractionDigits]="0"
+              placeholder="1" class="w-full" [min]="1"/>
+          </div>
+
+          <!-- Vehículo menor -->
+          <div class="sm:col-span-2 flex items-center gap-2 pt-1">
+            <p-checkbox [(ngModel)]="minorVehicleTransfer" [binary]="true" inputId="minorVehicle"/>
+            <label for="minorVehicle" class="text-sm text-gray-700 cursor-pointer">
+              Traslado en vehículo menor a 2 toneladas
+            </label>
+          </div>
+
+          <!-- Observaciones -->
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea pInputTextarea [(ngModel)]="observations" rows="2"
+              placeholder="Observaciones adicionales..." class="w-full"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SECCIÓN 2: TRANSPORTE ── -->
+      <div class="border border-gray-200 rounded-lg p-4">
+        @if (transportMode === 'TRANSPORTE_PUBLICO') {
+          <div class="font-semibold text-gray-700 mb-1 flex items-center gap-2">
+            <i class="pi pi-car text-blue-600"></i> Datos del transportista
+          </div>
+          <div class="text-xs text-gray-400 mb-4">Transportista autorizado — persona jurídica (RUC).</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de documento</label>
+              <input pInputText value="RUC" [disabled]="true" class="w-full bg-gray-50"/>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">N° RUC del transportista <span class="text-red-500">*</span></label>
+              <input pInputText [(ngModel)]="carrierRuc" placeholder="Ej: 20123456789"
+                maxlength="11" class="w-full"/>
+              @if (carrierRuc.trim().length > 0 && carrierRuc.trim().length !== 11) {
+                <p class="mt-1 text-xs text-red-500">El RUC debe tener exactamente 11 dígitos</p>
+              }
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Razón social del transportista <span class="text-red-500">*</span></label>
+              <input pInputText [(ngModel)]="carrierName" placeholder="Ej: Transportes XYZ S.A.C." class="w-full"/>
+            </div>
+          </div>
+        } @else {
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <div class="font-semibold text-gray-700 flex items-center gap-2">
+                <i class="pi pi-id-card text-purple-600"></i> Conductores
+              </div>
+              <div class="text-xs text-gray-400">Datos del conductor y vehículo.</div>
+            </div>
+            <p-button label="+ Agregar conductor" size="small"
+              styleClass="bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-3 py-1.5 text-sm"
+              (click)="agregarConductor()"/>
+          </div>
+
+          @if (conductores().length === 0) {
+            <div class="text-sm text-gray-400 italic text-center py-4">Agrega al menos un conductor.</div>
+          }
+
+          @for (driver of conductores(); track $index) {
+            <div class="mb-3 rounded-lg border border-gray-200 p-4 bg-gray-50">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-semibold text-gray-700">Conductor {{ $index + 1 }}</span>
+                <button class="text-red-500 hover:text-red-700 text-xs font-medium" (click)="eliminarConductor($index)">
+                  Eliminar
+                </button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Tipo documento</label>
+                  <input pInputText value="DNI" [disabled]="true" class="w-full bg-gray-50"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">N° documento <span class="text-red-500">*</span></label>
+                  <input pInputText [(ngModel)]="driver.docNumber" placeholder="Ej: 12345678" class="w-full"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Nombres <span class="text-red-500">*</span></label>
+                  <input pInputText [(ngModel)]="driver.firstName" placeholder="Nombres" class="w-full"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Apellidos <span class="text-red-500">*</span></label>
+                  <input pInputText [(ngModel)]="driver.lastName" placeholder="Apellidos" class="w-full"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">N° licencia <span class="text-red-500">*</span></label>
+                  <input pInputText [(ngModel)]="driver.licenseNumber" placeholder="Ej: Q01234567"
+                    (ngModelChange)="driver.licenseNumber = $event.toUpperCase()" class="w-full"/>
+                  @if (licenciaInvalida(driver.licenseNumber)) {
+                    <p class="mt-1 text-xs text-red-500">Debe contener al menos una letra y un número</p>
+                  } @else if (licenciaExcedeLongitud(driver.licenseNumber)) {
+                    <p class="mt-1 text-xs text-red-500">Máximo 10 caracteres</p>
+                  }
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Placa del vehículo <span class="text-red-500">*</span></label>
+                  <input pInputText [(ngModel)]="driver.vehiclePlate" placeholder="Ej: ABC-123"
+                    (ngModelChange)="driver.vehiclePlate = $event.toUpperCase()" class="w-full"/>
+                </div>
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <!-- ── SECCIÓN 3: DESTINATARIO ── -->
+      <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-semibold text-gray-700 flex items-center gap-2">
+            <i class="pi pi-user text-teal-600"></i> Destinatario
+          </div>
+          <div class="flex gap-2">
+            <p-button label="Buscar" icon="pi pi-search" size="small" [outlined]="true" (click)="abrirBuscarCliente()"/>
+            @if (clienteSeleccionado()) {
+              <p-button label="Limpiar" icon="pi pi-times" size="small" severity="secondary" [outlined]="true" (click)="limpiarCliente()"/>
+            }
+          </div>
+        </div>
+        @if (clienteSeleccionado()) {
+          <div class="bg-teal-50 border border-teal-200 rounded p-3 text-sm">
+            <div class="font-semibold text-teal-800">{{ clienteSeleccionado()!.nombre_completo }}</div>
+            <div class="text-gray-600 text-xs mt-0.5">{{ clienteSeleccionado()!.tipodocidenabr }}: {{ clienteSeleccionado()!.nrodocident }}</div>
+            @if (clienteSeleccionado()!.direccion) {
+              <div class="text-gray-500 text-xs mt-1">{{ clienteSeleccionado()!.direccion }}</div>
+            }
+          </div>
+        } @else {
+          <div class="border border-dashed border-gray-300 rounded p-4 text-sm text-gray-400 text-center">
+            Sin destinatario seleccionado
+          </div>
+        }
+      </div>
+
+      <!-- ── SECCIÓN 4+5: DIRECCIONES ── -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        <!-- Punto de partida -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <i class="pi pi-map-marker text-green-600"></i> Punto de partida
+          </div>
+          <div class="flex flex-col gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Dirección completa <span class="text-red-500">*</span></label>
+              <input pInputText [(ngModel)]="originAddress" placeholder="Ej: AV. PETIT THOUARS 4373" class="w-full"/>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Ubigeo <span class="text-red-500">*</span></label>
+              <p-select [options]="ubigeoOpciones()" [(ngModel)]="originUbigeo"
+                optionLabel="label" optionValue="value"
+                [filter]="true" filterBy="label"
+                placeholder="Buscar ubigeo..." appendTo="body" class="w-full"
+                [virtualScroll]="true" [virtualScrollItemSize]="38"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Punto de llegada -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <i class="pi pi-map-marker text-red-600"></i> Punto de llegada
+          </div>
+          <div class="flex flex-col gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Dirección completa <span class="text-red-500">*</span></label>
+              <input pInputText [(ngModel)]="destinationAddress" placeholder="Ej: AV. EL RETABLO 890 COMAS" class="w-full"/>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Ubigeo <span class="text-red-500">*</span></label>
+              <p-select [options]="ubigeoOpciones()" [(ngModel)]="destinationUbigeo"
+                optionLabel="label" optionValue="value"
+                [filter]="true" filterBy="label"
+                placeholder="Buscar ubigeo..." appendTo="body" class="w-full"
+                [virtualScroll]="true" [virtualScrollItemSize]="38"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SECCIÓN 6: ÍTEMS ── -->
+      <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-1">
+          <div>
+            <div class="font-semibold text-gray-700 flex items-center gap-2">
+              <i class="pi pi-list text-teal-600"></i> Ítems a trasladar
+            </div>
+            <div class="text-xs text-gray-400">Agrega productos del catálogo o ítems personalizados.</div>
+          </div>
+          <div class="flex gap-2">
+            <p-button label="+ Agregar producto" size="small"
+              styleClass="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3 py-1.5 text-sm"
+              (click)="abrirAgregarProducto()"/>
+            <p-button label="+ Ítem personalizado" size="small"
+              styleClass="bg-gray-500 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm"
+              (click)="abrirItemPersonalizado()"/>
+          </div>
+        </div>
+
+        @if (items().length === 0) {
+          <div class="text-center text-gray-400 italic py-6 border-t border-gray-100 mt-3">
+            Aún no hay ítems agregados.
+          </div>
+        } @else {
+          <table class="w-full mt-3 text-sm">
+            <thead>
+              <tr class="border-b border-gray-200 text-gray-500 text-xs uppercase">
+                <th class="text-left py-2 px-1">Descripción</th>
+                <th class="text-center py-2 px-1 w-24">Cantidad</th>
+                <th class="text-center py-2 px-1 w-20">Unidad</th>
+                <th class="text-right py-2 px-1 w-28">P. Unit.</th>
+                <th class="py-2 px-1 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of items(); track $index) {
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                  <td class="py-2 px-1 font-medium">{{ item.description }}</td>
+                  <td class="py-2 px-1 text-center">
+                    <p-inputNumber [(ngModel)]="item.quantity"
+                      [minFractionDigits]="0" [maxFractionDigits]="3"
+                      inputStyleClass="w-20 text-center text-sm" [min]="0.001"/>
+                  </td>
+                  <td class="py-2 px-1 text-center text-gray-500">{{ item.unitMeasureSunat }}</td>
+                  <td class="py-2 px-1 text-right">
+                    S/ {{ item.unitPrice | number:'1.2-2' }}
+                  </td>
+                  <td class="py-2 px-1 text-center">
+                    <button class="text-red-400 hover:text-red-600" (click)="eliminarItem($index)">
+                      <i class="pi pi-trash text-xs"></i>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 p-2 border-t border-gray-200 bg-gray-50">
+      <p-button label="Cancelar" icon="pi pi-ban"
+        styleClass="p-button-secondary p-button-outlined" (click)="guiaFormDialog=false"/>
+      <p-button label="Registrar guía" icon="pi pi-send"
+        styleClass="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg"
+        [disabled]="spinner"
+        (click)="registrarGuia()"/>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ BUSCAR CLIENTE ═══════════════════════════ -->
+<p-dialog [(visible)]="buscarClienteDialog" header="Buscar destinatario"
+  [style]="{width:'520px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Filtra por nombre / razón social / documento</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [ngModel]="searchCliente()" (ngModelChange)="searchCliente.set($event); clientePage=1"
+      placeholder="Ej: Pérez / 12345678 / 20123456789" class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-2 min-h-[220px]">
+    @for (c of clientesPagina(); track c.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-teal-50 cursor-pointer flex justify-between items-center gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-gray-800 text-sm">{{ c.nombre_completo }}</div>
+          <div class="text-xs text-gray-500">{{ c.tipodocidenabr }}: {{ c.nrodocident }}</div>
+          @if (c.direccion) { <div class="text-xs text-gray-400 truncate">{{ c.direccion }}</div> }
+        </div>
+        <p-button label="Seleccionar" size="small" (click)="seleccionarCliente(c)"/>
+      </div>
+    }
+    @if (listaClientesFiltrada().length === 0) {
+      <div class="text-center text-gray-400 italic py-4 text-sm">No se encontraron clientes.</div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+    <span>{{ (clientePage-1)*5+1 }}-{{ minVal(clientePage*5, listaClientesFiltrada().length) }} de {{ listaClientesFiltrada().length }}</span>
+    <div class="flex gap-2 items-center">
+      <p-button icon="pi pi-chevron-left" [rounded]="true" [text]="true" size="small"
+        [disabled]="clientePage===1" (click)="clientePage=clientePage-1"/>
+      <span>{{ clientePage }} / {{ totalClientePages() }}</span>
+      <p-button icon="pi pi-chevron-right" [rounded]="true" [text]="true" size="small"
+        [disabled]="clientePage>=totalClientePages()" (click)="clientePage=clientePage+1"/>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="buscarClienteDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ AGREGAR PRODUCTO ═══════════════════════════ -->
+<p-dialog [(visible)]="agregarProductoDialog" header="Agregar producto"
+  [style]="{width:'560px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Buscar producto por SKU / nombre</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [(ngModel)]="searchProducto" (ngModelChange)="productoPage=1"
+      placeholder="Ej: MM-EST-0001 / Baranda / Tolva" class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-2 min-h-[200px]">
+    @for (p of productosPagina(); track p.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+        (click)="agregarProducto(p)">
+        <div>
+          <div class="font-semibold text-sm">{{ p.sku }} — {{ p.name }}</div>
+          <div class="text-xs text-gray-500">{{ p.categoryName }}</div>
+        </div>
+        <span class="font-medium text-sm text-blue-700">S/ {{ p.salePricePen | number:'1.2-2' }}</span>
+      </div>
+    }
+    @if (productosFiltrados().length === 0) {
+      <div class="text-center text-gray-400 italic py-6 text-sm">No hay productos disponibles.</div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+    <span>{{ (productoPage-1)*5+1 }}-{{ minVal(productoPage*5, productosFiltrados().length) }} de {{ productosFiltrados().length }}</span>
+    <div class="flex gap-2 items-center">
+      <p-button icon="pi pi-chevron-left" [rounded]="true" [text]="true" size="small"
+        [disabled]="productoPage===1" (click)="productoPage=productoPage-1"/>
+      <span>{{ productoPage }} / {{ totalProductoPages() }}</span>
+      <p-button icon="pi pi-chevron-right" [rounded]="true" [text]="true" size="small"
+        [disabled]="productoPage>=totalProductoPages()" (click)="productoPage=productoPage+1"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="agregarProductoDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ ÍTEM PERSONALIZADO ═══════════════════════════ -->
+<p-dialog [(visible)]="itemPersonalizadoDialog" header="Ítem personalizado"
+  [style]="{width:'480px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-4">Agrega un ítem que no esté en el catálogo de productos.</div>
+  <div class="flex flex-col gap-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">Descripción <span class="text-red-500">*</span></label>
+      <input pInputText [(ngModel)]="itemDesc" placeholder="Ej: Baranda metálica galvanizada" class="w-full"/>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Cantidad <span class="text-red-500">*</span></label>
+        <p-inputNumber [(ngModel)]="itemQuantity" [minFractionDigits]="0" [maxFractionDigits]="3"
+          placeholder="1" class="w-full" [min]="0.001"/>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Unidad SUNAT</label>
+        <input pInputText [(ngModel)]="itemUnit" placeholder="NIU" class="w-full"/>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Precio unitario (S/)</label>
+      <p-inputNumber [(ngModel)]="itemPrice" [minFractionDigits]="2" [maxFractionDigits]="2"
+        placeholder="0.00" class="w-full" [min]="0"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-2">
+      <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="itemPersonalizadoDialog=false"/>
+      <p-button label="Agregar ítem" icon="pi pi-plus" (click)="confirmarItemPersonalizado()"/>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ DETALLE GUÍA ═══════════════════════════ -->
+<p-dialog [(visible)]="detalleDialog" header="Detalle de Guía de Remisión"
+  [style]="{width:'75vw',maxWidth:'950px'}" [modal]="true" [maximizable]="true" appendTo="body">
+  @if (guiaDetalle()) {
+    <!-- Estado SUNAT banner -->
+    @if (guiaDetalle()!.status) {
+      <div class="mb-4 p-3 rounded-lg text-sm font-medium flex items-center gap-2"
+        [ngClass]="{
+          'bg-green-50 text-green-700 border border-green-200': guiaDetalle()!.status === 'ACEPTADO',
+          'bg-red-50 text-red-700 border border-red-200': guiaDetalle()!.status === 'RECHAZADO',
+          'bg-yellow-50 text-yellow-700 border border-yellow-200': guiaDetalle()!.status === 'PENDIENTE',
+          'bg-gray-50 text-gray-600 border border-gray-200': guiaDetalle()!.status !== 'ACEPTADO' && guiaDetalle()!.status !== 'RECHAZADO' && guiaDetalle()!.status !== 'PENDIENTE'
+        }">
+        <i class="pi pi-info-circle"></i>
+        <span>{{ guiaDetalle()!.status }}</span>
+        @if (guiaDetalle()!.sunatMessage) {
+          <span class="text-xs ml-2 opacity-80">[{{ guiaDetalle()!.sunatResponseCode }}] {{ guiaDetalle()!.sunatMessage }}</span>
+        }
+      </div>
+    }
+
+    <!-- Documento emitido -->
+    @if (guiaDetalle()!.series) {
+      <div class="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
+        <div class="text-xs text-teal-600 font-semibold uppercase mb-1">Documento emitido</div>
+        <div class="font-mono font-bold text-teal-800 text-lg">
+          {{ guiaDetalle()!.series }}-{{ guiaDetalle()!.sequence }}
+        </div>
+        @if (guiaDetalle()!.issueDate) {
+          <div class="text-xs text-gray-500 mt-1">Emitido: {{ guiaDetalle()!.issueDate }}</div>
+        }
+        @if (guiaDetalle()!.pdfUrl) {
+          <a [href]="guiaDetalle()!.pdfUrl" target="_blank"
+            class="mt-2 inline-flex items-center gap-1 text-xs text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors">
+            <i class="pi pi-file-pdf"></i> Ver PDF
+          </a>
+        }
+      </div>
+    }
+
+    <!-- Datos generales -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
+      <div><span class="text-gray-400 block text-xs">Fecha de traslado</span><strong>{{ guiaDetalle()!.transferDate }}</strong></div>
+      <div><span class="text-gray-400 block text-xs">Motivo</span>{{ getTransferReasonLabel(guiaDetalle()!.transferReason) }}</div>
+      <div>
+        <span class="text-gray-400 block text-xs">Transporte</span>
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+          [ngClass]="guiaDetalle()!.transportMode === 'TRANSPORTE_PUBLICO' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'">
+          {{ getTransportModeLabel(guiaDetalle()!.transportMode) }}
+        </span>
+      </div>
+      <div><span class="text-gray-400 block text-xs">Peso bruto</span>{{ guiaDetalle()!.grossWeight }} {{ guiaDetalle()!.weightUnit }}</div>
+      <div><span class="text-gray-400 block text-xs">N° bultos</span>{{ guiaDetalle()!.packageCount ?? 1 }}</div>
+    </div>
+
+    <p-divider/>
+
+    <!-- Destinatario y conductores -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 text-sm">
+      <div>
+        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Destinatario</div>
+        <div class="font-semibold">{{ guiaDetalle()!.clientName ?? '—' }}</div>
+      </div>
+      @if (guiaDetalle()!.drivers?.length) {
+        <div>
+          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Conductores</div>
+          @for (d of guiaDetalle()!.drivers!; track d.driverDocNumber) {
+            <div class="text-xs mb-1">
+              <span class="font-medium">{{ d.driverFirstName }} {{ d.driverLastName }}</span>
+              — Lic: {{ d.driverLicenseNumber }} | Placa: {{ d.vehiclePlate }}
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Puntos de traslado -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm">
+      <div class="bg-green-50 border border-green-200 rounded p-3">
+        <div class="text-xs font-semibold text-green-600 mb-1">Punto de partida</div>
+        <div>{{ guiaDetalle()!.originAddress }}</div>
+      </div>
+      <div class="bg-red-50 border border-red-200 rounded p-3">
+        <div class="text-xs font-semibold text-red-600 mb-1">Punto de llegada</div>
+        <div>{{ guiaDetalle()!.destinationAddress }}</div>
+      </div>
+    </div>
+
+    <p-divider/>
+
+    <!-- Ítems -->
+    <div class="font-semibold mb-2">Ítems a trasladar</div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-xs text-gray-500 uppercase">
+          <th class="text-left py-1">Descripción</th>
+          <th class="text-center py-1">Cant.</th>
+          <th class="text-center py-1">Unidad</th>
+          <th class="text-right py-1">P. Unit.</th>
+          <th class="text-right py-1">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of guiaDetalle()!.items; track item.id) {
+          <tr class="border-b border-gray-100">
+            <td class="py-1.5">{{ item.description }}</td>
+            <td class="py-1.5 text-center">{{ item.quantity }}</td>
+            <td class="py-1.5 text-center text-gray-500">{{ item.unitMeasureSunat }}</td>
+            <td class="py-1.5 text-right">S/ {{ item.unitPrice | number:'1.2-2' }}</td>
+            <td class="py-1.5 text-right font-medium">S/ {{ item.subtotalAmount | number:'1.2-2' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+  <ng-template pTemplate="footer">
+    <p-button label="Cerrar" severity="secondary" [outlined]="true" (click)="detalleDialog=false"/>
+    @if (guiaDetalle()?.pdfUrl) {
+      <p-button label="PDF" icon="pi pi-file-pdf" severity="danger" (click)="abrirPdf(guiaDetalle()!)"/>
+    }
+  </ng-template>
+</p-dialog>

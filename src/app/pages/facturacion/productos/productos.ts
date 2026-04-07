@@ -73,7 +73,7 @@ export class Productos {
     this.cargarCategorias();
   }
 
-  private cargarProductos() {
+  cargarProductos() {
     this.spinner = true;
     this.productoService.listar().subscribe({
       next: (response) => {

@@ -40,13 +40,17 @@
               class="w-full md:w-72 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-300"
             />
           </p-iconfield>
-          <p-button
-            label="Nuevo Producto"
-            icon="pi pi-plus"
-            class="transition-all duration-300 hover:scale-105"
-            styleClass="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-            (click)="openProductoDialog()"
-          />
+          <div class="flex gap-2">
+            <p-button
+              label="Nuevo Producto"
+              icon="pi pi-plus"
+              class="transition-all duration-300 hover:scale-105"
+              styleClass="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+              (click)="openProductoDialog()"
+            />
+            <p-button icon="pi pi-refresh" label="Actualizar" size="small" [outlined]="true"
+              (click)="cargarProductos()" [disabled]="spinner"/>
+          </div>
         </div>
       </ng-template>
 

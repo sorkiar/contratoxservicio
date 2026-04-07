@@ -1,0 +1,177 @@
+@if (spinner) { <app-carga></app-carga> }
+<p-toast></p-toast>
+
+<!-- ═══════════════════════════ COMPROBANTES SUNAT ═══════════════════════════ -->
+<div class="p-4 sm:p-6 lg:p-8 bg-white rounded-xl shadow-lg border border-gray-200">
+  <p-fieldset>
+    <ng-template #header>
+      <div class="flex items-center gap-4 px-6 py-4 bg-violet-100 rounded-t-xl border-b border-violet-300">
+        <i class="pi pi-shield text-violet-700" style="font-size:2.5rem"></i>
+        <span class="text-2xl font-bold text-violet-800 tracking-wide">Administración de Comprobantes</span>
+      </div>
+    </ng-template>
+
+    <!-- FILTROS -->
+    <div class="flex flex-col sm:flex-row gap-3 px-2 pb-4 pt-2 border-b border-gray-100">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-gray-500">Estado</label>
+        <p-select [options]="statusOptions" [(ngModel)]="statusFilter"
+          optionLabel="label" optionValue="value"
+          appendTo="body" class="w-44"
+          (onChange)="cargarComprobantes()"/>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-gray-500">Tipo de comprobante</label>
+        <p-select [options]="tipoOptions" [(ngModel)]="tipoFilter"
+          optionLabel="label" optionValue="value"
+          appendTo="body" class="w-52"
+          (onChange)="cargarComprobantes()"/>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-gray-500">Fecha desde</label>
+        <input pInputText type="date" [(ngModel)]="startDate" class="h-10"/>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-gray-500">Fecha hasta</label>
+        <input pInputText type="date" [(ngModel)]="endDate" class="h-10"/>
+      </div>
+      <div class="flex items-end">
+        <p-button icon="pi pi-search" label="Buscar" size="small"
+          styleClass="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg"
+          (click)="cargarComprobantes()"/>
+      </div>
+      <div class="flex items-end ml-auto">
+        <p-button icon="pi pi-refresh" label="Actualizar" size="small" [outlined]="true"
+          (click)="cargarComprobantes()" [disabled]="spinner"/>
+      </div>
+    </div>
+
+    <p-table #dt [value]="listaComprobantes()" dataKey="id" [rowHover]="true" [rows]="15"
+      [paginator]="true" [loading]="loading" [showCurrentPageReport]="true"
+      currentPageReportTemplate="Se encontraron {first} de {last} Total {totalRecords} Registros"
+      [rowsPerPageOptions]="[10,15,25,50]" [filterDelay]="0"
+      [globalFilterFields]="['serie','tipoDocumentoNombre','tipoEntidad','status']"
+      [tableStyle]="{'max-width':'100%'}">
+
+      <ng-template #caption>
+        <div class="flex items-center gap-3 px-2 py-2">
+          <p-iconfield iconPosition="left" class="w-full md:w-auto">
+            <p-inputicon><i class="pi pi-search text-violet-600"></i></p-inputicon>
+            <input pInputText type="text" [(ngModel)]="searchValue"
+              (input)="dt.filterGlobal($event.target.value,'contains')"
+              placeholder="Filtrar tabla..."
+              class="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"/>
+          </p-iconfield>
+        </div>
+      </ng-template>
+
+      <ng-template #header>
+        <tr class="bg-violet-200 text-violet-900 text-sm font-semibold">
+          <th class="px-3 py-3">Tipo</th>
+          <th pSortableColumn="serie" class="px-3 py-3">Comprobante <p-sortIcon field="serie"/></th>
+          <th pSortableColumn="fechaEmision" class="px-3 py-3">Fecha emisión <p-sortIcon field="fechaEmision"/></th>
+          <th class="px-3 py-3">Estado SUNAT</th>
+          <th class="px-3 py-3">Respuesta</th>
+          <th class="px-3 py-3 text-center">Acciones</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #body let-doc>
+        <tr class="hover:bg-violet-50 transition-colors duration-200">
+
+          <!-- Tipo -->
+          <td class="px-3 py-2">
+            <p-tag [value]="getTipoDocLabel(doc)" [severity]="getTipoSeverity(doc)"/>
+          </td>
+
+          <!-- Comprobante -->
+          <td class="px-3 py-2 font-mono text-sm font-semibold">
+            {{ getDocNumero(doc) }}
+          </td>
+
+          <!-- Fecha -->
+          <td class="px-3 py-2 text-sm text-gray-600">
+            {{ doc.fechaEmision ?? '—' }}
+          </td>
+
+          <!-- Estado SUNAT -->
+          <td class="px-3 py-2">
+            @if (doc.status) {
+              <p-tag [value]="doc.status" [severity]="getSunatSeverity(doc.status)"/>
+            } @else {
+              <span class="text-xs text-gray-400">—</span>
+            }
+          </td>
+
+          <!-- Respuesta SUNAT (código + mensaje) -->
+          <td class="px-3 py-2" style="max-width:220px">
+            @if (doc.sunatMessage) {
+              <div class="text-xs text-gray-500 leading-snug cursor-help"
+                style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden"
+                [pTooltip]="(doc.sunatResponseCode ? '[' + doc.sunatResponseCode + '] ' : '') + doc.sunatMessage"
+                tooltipPosition="left" [tooltipOptions]="{showDelay:200}">
+                @if (doc.sunatResponseCode) {
+                  <span class="font-semibold text-gray-700">[{{ doc.sunatResponseCode }}]</span>
+                }
+                {{ doc.sunatMessage }}
+              </div>
+            } @else {
+              <span class="text-xs text-gray-300">—</span>
+            }
+          </td>
+
+          <!-- Acciones -->
+          <td class="px-3 py-2">
+            <div class="flex items-center gap-1.5 flex-wrap justify-center">
+
+              <!-- PDF -->
+              @if (doc.pdfUrl) {
+                <p-button icon="pi pi-file-pdf" severity="danger" size="small"
+                  [rounded]="true" [outlined]="true"
+                  pTooltip="Ver PDF" tooltipPosition="top"
+                  styleClass="hover:scale-105 transition-transform"
+                  (click)="abrirPdf(doc.pdfUrl)"/>
+              }
+
+              <!-- Regenerar PDF (nuevo botón no disponible en el proyecto de referencia) -->
+              @if (puedeRegenerarPdf(doc)) {
+                <p-button icon="pi pi-sync" size="small"
+                  [rounded]="true" [outlined]="true"
+                  severity="secondary"
+                  pTooltip="Regenerar PDF" tooltipPosition="top"
+                  [disabled]="regenerandoId === doc.id"
+                  [loading]="regenerandoId === doc.id"
+                  styleClass="hover:scale-105 transition-transform"
+                  (click)="regenerarPdf(doc)"/>
+              }
+
+              <!-- Reenviar a SUNAT -->
+              @if (puedeReenviar(doc)) {
+                <p-button
+                  [icon]="reenviadoId === doc.id ? 'pi pi-spin pi-spinner' : 'pi pi-send'"
+                  size="small" [rounded]="true" [outlined]="true"
+                  severity="warn"
+                  [pTooltip]="doc.status === 'PENDIENTE' ? 'Enviar a SUNAT' : 'Reenviar a SUNAT'"
+                  tooltipPosition="top"
+                  [disabled]="reenviadoId === doc.id"
+                  styleClass="hover:scale-105 transition-transform"
+                  (click)="reenviar(doc)"/>
+              }
+
+            </div>
+          </td>
+
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="6" class="text-center text-gray-400 italic py-8">
+            No hay comprobantes disponibles para los filtros seleccionados.
+          </td>
+        </tr>
+      </ng-template>
+
+    </p-table>
+  </p-fieldset>
+</div>

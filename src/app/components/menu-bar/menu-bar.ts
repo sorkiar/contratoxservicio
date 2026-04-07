@@ -86,7 +86,7 @@ export class MenuBar {
                 severity: 'info',
                 summary: 'Bajas por Morosidad',
                 detail: 'Funcionalidad en desarrollo',
-                life: 3000,   
+                life: 3000,
               });
             },
           },
@@ -515,6 +515,21 @@ export class MenuBar {
             label: 'Ventas',
             icon: 'pi pi-shopping-cart',
             routerLink: './facturacion-ventas',
+          },
+          {
+            label: 'Notas de Crédito / Débito',
+            icon: 'pi pi-file-edit',
+            routerLink: './facturacion-notas',
+          },
+          {
+            label: 'Guías de Remisión',
+            icon: 'pi pi-truck',
+            routerLink: './facturacion-guias',
+          },
+          {
+            label: 'Comprobantes SUNAT',
+            icon: 'pi pi-shield',
+            routerLink: './facturacion-comprobantes',
           },
         ],
       },

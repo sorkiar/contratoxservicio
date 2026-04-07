@@ -185,7 +185,7 @@ export class Ventas {
     this.cargarVentas();
   }
 
-  private cargarVentas() {
+  cargarVentas() {
     this.spinner = true;
     this.ventaService.listar().subscribe({
       next: (r) => {

@@ -11,12 +11,13 @@ export class VentaService {
 
   constructor(private http: HttpClient) {}
 
-  listar(clientId?: number, saleStatus?: string, startDate?: string, endDate?: string): Observable<Response_Generico<SaleResponse[]>> {
+  listar(clientId?: number, saleStatus?: string, startDate?: string, endDate?: string, documentStatus?: string): Observable<Response_Generico<SaleResponse[]>> {
     let params = new HttpParams();
     if (clientId != null) params = params.set('clientId', clientId.toString());
     if (saleStatus) params = params.set('saleStatus', saleStatus);
     if (startDate) params = params.set('startDate', startDate);
     if (endDate) params = params.set('endDate', endDate);
+    if (documentStatus) params = params.set('documentStatus', documentStatus);
     return this.http.get<Response_Generico<SaleResponse[]>>(`${this.baseUrl}/listar`, { params });
   }
 

@@ -141,5 +141,20 @@ export const pagesRoutes: Routes = [
     loadComponent: () =>
       import('./facturacion/ventas/ventas').then((m) => m.Ventas),
   },
+  {
+    path: 'facturacion-notas',
+    loadComponent: () =>
+      import('./facturacion/notas/notas').then((m) => m.Notas),
+  },
+  {
+    path: 'facturacion-guias',
+    loadComponent: () =>
+      import('./facturacion/guias/guias').then((m) => m.Guias),
+  },
+  {
+    path: 'facturacion-comprobantes',
+    loadComponent: () =>
+      import('./facturacion/comprobantes/comprobantes').then((m) => m.Comprobantes),
+  },
   { path: '**', redirectTo: 'login' },
 ];

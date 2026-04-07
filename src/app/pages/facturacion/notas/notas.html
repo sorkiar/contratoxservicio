@@ -1,0 +1,568 @@
+@if (spinner) { <app-carga></app-carga> }
+<p-toast></p-toast>
+
+<!-- ═══════════════════════════ LISTADO ═══════════════════════════ -->
+<div class="p-4 sm:p-6 lg:p-8 bg-white rounded-xl shadow-lg border border-gray-200">
+  <p-fieldset>
+    <ng-template #header>
+      <div class="flex items-center gap-4 px-6 py-4 bg-amber-100 rounded-t-xl border-b border-amber-300">
+        <i class="pi pi-file-edit text-amber-700" style="font-size:2.5rem"></i>
+        <span class="text-2xl font-bold text-amber-800 tracking-wide">Notas de Crédito y Débito</span>
+      </div>
+    </ng-template>
+
+    <p-table #dt [value]="listaNotas()" dataKey="id" [rowHover]="true" [rows]="10"
+      [paginator]="true" [loading]="loading" [showCurrentPageReport]="true"
+      currentPageReportTemplate="Se encontraron {first} de {last} Total {totalRecords} Registros"
+      [rowsPerPageOptions]="[10,25,50]" [filterDelay]="0"
+      [globalFilterFields]="['creditDebitNoteTypeName','reason','originalDocumentNumber']"
+      [tableStyle]="{'max-width':'100%'}">
+
+      <ng-template #caption>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-2 py-4">
+          <p-iconfield iconPosition="left" class="w-full md:w-auto">
+            <p-inputicon><i class="pi pi-search text-amber-600"></i></p-inputicon>
+            <input pInputText type="text" [(ngModel)]="searchValue"
+              (input)="dt.filterGlobal($event.target.value,'contains')"
+              placeholder="Buscar nota..."
+              class="w-full md:w-72 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 transition duration-300"/>
+          </p-iconfield>
+          <div class="flex gap-2">
+            <p-button label="Nueva Nota" icon="pi pi-plus"
+              styleClass="px-4 py-2 text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-all duration-300 hover:scale-105"
+              (click)="abrirNuevaNota()"/>
+            <p-button icon="pi pi-refresh" label="Actualizar" size="small" [outlined]="true"
+              (click)="cargarNotas()" [disabled]="spinner"/>
+          </div>
+        </div>
+      </ng-template>
+
+      <ng-template #header>
+        <tr class="bg-amber-200 text-amber-900 text-sm font-semibold">
+          <th class="px-3 py-3">Comprobante</th>
+          <th class="px-3 py-3">Doc. Original</th>
+          <th pSortableColumn="issueDate" class="px-3 py-3">Fecha emisión <p-sortIcon field="issueDate"/></th>
+          <th class="px-3 py-3">Tipo de Nota</th>
+          <th class="px-3 py-3">Categoría</th>
+          <th class="px-3 py-3">Estado Sunat</th>
+          <th pSortableColumn="subtotalAmount" class="px-3 py-3">Subtotal <p-sortIcon field="subtotalAmount"/></th>
+          <th pSortableColumn="taxAmount" class="px-3 py-3">IGV <p-sortIcon field="taxAmount"/></th>
+          <th pSortableColumn="totalAmount" class="px-3 py-3">Total <p-sortIcon field="totalAmount"/></th>
+          <th class="px-3 py-3">Acciones</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #body let-nota>
+        <tr class="hover:bg-amber-50 transition-colors duration-300">
+          <td class="font-mono text-sm px-3">{{ getComprobante(nota) }}</td>
+          <td class="font-mono text-sm px-3">{{ nota.originalDocumentNumber }}</td>
+          <td class="px-3">{{ nota.issueDate }}</td>
+          <td class="px-3">{{ nota.creditDebitNoteTypeName }}</td>
+          <td class="px-3">
+            <p-tag [value]="nota.documentTypeCode === '07' ? 'CRÉDITO' : 'DÉBITO'"
+              [severity]="nota.documentTypeCode === '07' ? 'info' : 'warn'"/>
+          </td>
+          <td class="px-3">
+            <p-tag [value]="nota.status" [severity]="getSunatSeverity(nota.status)"/>
+          </td>
+          <td class="px-3">{{ nota.subtotalAmount | number:'1.2-2' }}</td>
+          <td class="px-3">{{ nota.taxAmount | number:'1.2-2' }}</td>
+          <td class="px-3 font-semibold">{{ nota.totalAmount | number:'1.2-2' }}</td>
+          <td class="px-3 flex gap-2">
+            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true"
+              pTooltip="Ver detalle" (click)="verDetalle(nota)"
+              styleClass="hover:scale-105 transition-transform"/>
+            <p-button icon="pi pi-file-pdf" severity="danger" [rounded]="true" [outlined]="true"
+              pTooltip="Descargar PDF" tooltipPosition="left" (click)="abrirPdf(nota)"
+              styleClass="hover:scale-105 transition-transform"/>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr><td colspan="10" class="text-center text-gray-400 italic py-4">No hay notas disponibles.</td></tr>
+      </ng-template>
+    </p-table>
+  </p-fieldset>
+</div>
+
+<!-- ═══════════════════════════ FORM NUEVA NOTA ═══════════════════════════ -->
+<p-dialog [(visible)]="notaFormDialog" [style]="{width:'95vw',maxWidth:'1300px'}"
+  [modal]="true" [maximizable]="true" [breakpoints]="{'960px':'100vw'}">
+  <ng-template pTemplate="header">
+    <div class="flex items-center gap-3">
+      <i class="pi pi-file-edit text-amber-600" style="font-size:1.5rem"></i>
+      <div>
+        <div class="text-lg font-bold text-amber-700">Registrar Nota de Crédito / Débito</div>
+        <div class="text-xs text-gray-500">Selecciona la venta, el tipo de nota y detalla los ítems.</div>
+      </div>
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="content">
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
+
+      <!-- ── COLUMNA IZQUIERDA ── -->
+      <div class="flex flex-col gap-4">
+
+        <!-- Venta asociada -->
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-gray-700">Venta asociada</span>
+            <div class="flex gap-2">
+              <p-button label="Buscar venta" icon="pi pi-search" size="small" [outlined]="true" (click)="abrirBuscarVenta()"/>
+              @if (ventaSeleccionada()) {
+                <p-button label="Limpiar" icon="pi pi-times" size="small" severity="secondary" [outlined]="true" (click)="limpiarVenta()"/>
+              }
+            </div>
+          </div>
+          @if (ventaSeleccionada()) {
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-sm">
+              <div class="font-semibold text-amber-800">{{ getVentaComprobante(ventaSeleccionada()!) }}</div>
+              <div class="text-gray-600">Cliente: {{ ventaSeleccionada()!.clientName }}</div>
+              <div class="text-gray-500 text-xs mt-1">
+                Doc: {{ ventaSeleccionada()!.clientDocNumber }}
+                &nbsp;|&nbsp; Total: S/ {{ ventaSeleccionada()!.totalAmount | number:'1.2-2' }}
+                &nbsp;|&nbsp; Fecha: {{ ventaSeleccionada()!.saleDate }}
+              </div>
+            </div>
+          } @else {
+            <div class="border border-dashed border-gray-300 rounded p-3 text-sm text-gray-400">Sin venta seleccionada</div>
+          }
+        </div>
+
+        <!-- Tipo de nota y motivo -->
+        @if (ventaSeleccionada()) {
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de nota <span class="text-red-500">*</span></label>
+                <p-select [options]="tiposNota()" [(ngModel)]="tipoNotaCodigo"
+                  optionLabel="name" optionValue="code"
+                  placeholder="Seleccionar tipo de nota"
+                  class="w-full" appendTo="body"
+                  (onChange)="onTipoNotaChange()"/>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Motivo <span class="text-red-500">*</span></label>
+                <input pInputText [(ngModel)]="motivo" placeholder="Motivo de la nota..." class="w-full"/>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Detalle de ítems -->
+        @if (ventaSeleccionada() && tipoNotaCodigo) {
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-1">
+              <div>
+                <div class="font-semibold text-gray-700">Ítems de la nota</div>
+                @if (isLocked()) {
+                  <div class="text-xs text-amber-600">Los ítems se cargaron automáticamente y no pueden modificarse.</div>
+                } @else if (isAutoLoad()) {
+                  <div class="text-xs text-blue-600">Ítems cargados desde la venta. Puedes editar cantidades y precios.</div>
+                } @else {
+                  <div class="text-xs text-gray-400">Agrega los ítems que apliquen a esta nota.</div>
+                }
+              </div>
+              @if (!isLocked()) {
+                <div class="flex gap-2 flex-wrap justify-end">
+                  <p-button label="+ Agregar producto" size="small"
+                    styleClass="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3 py-1.5 text-sm"
+                    (click)="abrirAgregarProducto()"/>
+                  <p-button label="+ Agregar servicio" size="small"
+                    styleClass="bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-3 py-1.5 text-sm"
+                    (click)="abrirAgregarServicio()"/>
+                  <p-button label="⚡ Servicio rápido" size="small"
+                    styleClass="bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg px-3 py-1.5 text-sm"
+                    (click)="abrirServicioRapido()"/>
+                </div>
+              }
+            </div>
+
+            @if (items().length === 0) {
+              <div class="text-center text-gray-400 italic py-6 border-t border-gray-100 mt-3">
+                Aún no hay ítems agregados.
+              </div>
+            } @else {
+              <table class="w-full mt-3 text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 text-gray-500 text-xs uppercase">
+                    <th class="text-left py-2 px-1">Tipo</th>
+                    <th class="text-left py-2 px-1">Descripción</th>
+                    <th class="text-right py-2 px-1">Precio</th>
+                    <th class="text-right py-2 px-1 w-20">Cant.</th>
+                    <th class="text-right py-2 px-1 w-20">Dscto %</th>
+                    <th class="text-right py-2 px-1">Subtotal</th>
+                    @if (!isLocked()) {
+                      <th class="py-2 px-1 w-10"></th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of items(); track $index) {
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                      <td class="py-2 px-1">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium"
+                          [ngClass]="{
+                            'bg-blue-100 text-blue-700': item.itemType==='PRODUCTO',
+                            'bg-purple-100 text-purple-700': item.itemType==='SERVICIO',
+                            'bg-yellow-100 text-yellow-700': item.itemType==='PERSONALIZADO'
+                          }">
+                          {{ getItemTypeLabel(item.itemType) }}
+                        </span>
+                      </td>
+                      <td class="py-2 px-1">{{ item.description }}</td>
+                      <td class="py-2 px-1 text-right">
+                        @if (isLocked()) {
+                          <span>{{ item.unitPrice | number:'1.2-2' }}</span>
+                        } @else {
+                          <p-inputNumber [(ngModel)]="item.unitPrice" (ngModelChange)="actualizarItem()"
+                            [minFractionDigits]="2" [maxFractionDigits]="2"
+                            inputStyleClass="w-24 text-right text-sm" [min]="0"/>
+                        }
+                      </td>
+                      <td class="py-2 px-1 text-right">
+                        @if (isLocked()) {
+                          <span>{{ item.quantity }}</span>
+                        } @else {
+                          <p-inputNumber [(ngModel)]="item.quantity" (ngModelChange)="actualizarItem()"
+                            [minFractionDigits]="0" [maxFractionDigits]="3"
+                            inputStyleClass="w-16 text-right text-sm" [min]="0.001"/>
+                        }
+                      </td>
+                      <td class="py-2 px-1 text-right">
+                        @if (isLocked()) {
+                          <span>{{ item.discountPercentage }}%</span>
+                        } @else {
+                          <p-inputNumber [(ngModel)]="item.discountPercentage" (ngModelChange)="actualizarItem()"
+                            [minFractionDigits]="0" [maxFractionDigits]="2"
+                            inputStyleClass="w-16 text-right text-sm" [min]="0" [max]="100"/>
+                        }
+                      </td>
+                      <td class="py-2 px-1 text-right font-medium">{{ item.subtotal | number:'1.2-2' }}</td>
+                      @if (!isLocked()) {
+                        <td class="py-2 px-1 text-center">
+                          <button class="text-red-400 hover:text-red-600" (click)="eliminarItem($index)">
+                            <i class="pi pi-trash text-xs"></i>
+                          </button>
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- ── COLUMNA DERECHA ── -->
+      <div class="flex flex-col gap-4">
+
+        <!-- Totales -->
+        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <div class="font-semibold text-gray-700 mb-3">Totales de la Nota</div>
+          <div class="flex justify-between text-sm py-1">
+            <span class="text-gray-500">Subtotal</span>
+            <span>S/ {{ subtotalNota() | number:'1.2-2' }}</span>
+          </div>
+          <div class="flex justify-between text-sm py-1">
+            <span class="text-gray-500">IGV (18%)</span>
+            <span>S/ {{ igvNota() | number:'1.2-2' }}</span>
+          </div>
+          <p-divider styleClass="my-2"/>
+          <div class="flex justify-between font-bold text-base">
+            <span>Total</span>
+            <span class="text-amber-700">S/ {{ totalNota() | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <!-- Info tipo nota -->
+        @if (tipoNotaSeleccionado()) {
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="font-semibold text-gray-700 mb-2">Tipo de nota</div>
+            <div class="flex items-center gap-2 mb-1">
+              <p-tag [value]="tipoNotaSeleccionado()!.noteCategory"
+                [severity]="getNotaTypeSeverity(tipoNotaSeleccionado()!.noteCategory)"/>
+              <span class="text-sm text-gray-600">{{ tipoNotaSeleccionado()!.name }}</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">
+              Código: <strong>{{ tipoNotaSeleccionado()!.code }}</strong>
+            </div>
+            @if (isLocked()) {
+              <div class="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                Este tipo de nota carga automáticamente todos los ítems de la venta y no permite modificarlos.
+              </div>
+            } @else if (isAutoLoad()) {
+              <div class="mt-2 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded p-2">
+                Los ítems se pre-cargan desde la venta y puedes editarlos.
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Venta referencia -->
+        @if (ventaSeleccionada()) {
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="font-semibold text-gray-700 mb-2">Venta de referencia</div>
+            <div class="text-xs text-gray-500 space-y-1">
+              <div>Comprobante: <strong class="font-mono">{{ getVentaComprobante(ventaSeleccionada()!) }}</strong></div>
+              <div>Cliente: <strong>{{ ventaSeleccionada()!.clientName }}</strong></div>
+              <div>Total: <strong>S/ {{ ventaSeleccionada()!.totalAmount | number:'1.2-2' }}</strong></div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 p-2 border-t border-gray-200 bg-gray-50">
+      <p-button label="Cancelar" icon="pi pi-ban"
+        styleClass="p-button-secondary p-button-outlined" (click)="notaFormDialog=false"/>
+      <p-button label="Registrar nota" icon="pi pi-send"
+        styleClass="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg"
+        [disabled]="spinner"
+        (click)="crearNota()"/>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ BUSCAR VENTA ═══════════════════════════ -->
+<p-dialog [(visible)]="buscarVentaDialog" header="Buscar venta"
+  [style]="{width:'640px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Solo se muestran ventas con documentos enviados a SUNAT.</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [ngModel]="searchVenta()" (ngModelChange)="searchVenta.set($event); ventaPage=1"
+      placeholder="Buscar por comprobante / cliente / RUC..." class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-2 min-h-[220px]">
+    @for (v of ventasPagina(); track v.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-amber-50 cursor-pointer flex justify-between items-center gap-3"
+        (click)="seleccionarVenta(v)">
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-sm font-mono text-amber-800">{{ getVentaComprobante(v) }}</div>
+          <div class="text-gray-600 text-sm truncate">{{ v.clientName }}</div>
+          <div class="text-xs text-gray-400">{{ v.clientDocNumber }} &nbsp;|&nbsp; Fecha: {{ v.saleDate }}</div>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="font-medium text-sm text-indigo-700">S/ {{ v.totalAmount | number:'1.2-2' }}</div>
+          <p-button label="Seleccionar" size="small" class="mt-1"/>
+        </div>
+      </div>
+    }
+    @if (ventasFiltradas().length === 0) {
+      <div class="text-center text-gray-400 italic py-6 text-sm">No se encontraron ventas.</div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+    <span>{{ (ventaPage-1)*5+1 }}-{{ minVal(ventaPage*5, ventasFiltradas().length) }} de {{ ventasFiltradas().length }}</span>
+    <div class="flex gap-2 items-center">
+      <p-button icon="pi pi-chevron-left" [rounded]="true" [text]="true" size="small"
+        [disabled]="ventaPage===1" (click)="ventaPage=ventaPage-1"/>
+      <span>{{ ventaPage }} / {{ totalVentaPages() }}</span>
+      <p-button icon="pi pi-chevron-right" [rounded]="true" [text]="true" size="small"
+        [disabled]="ventaPage>=totalVentaPages()" (click)="ventaPage=ventaPage+1"/>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="buscarVentaDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ AGREGAR PRODUCTO ═══════════════════════════ -->
+<p-dialog [(visible)]="agregarProductoDialog" header="Agregar producto"
+  [style]="{width:'560px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Buscar producto por SKU / nombre</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [(ngModel)]="searchProducto" (ngModelChange)="productoPage=1"
+      placeholder="Ej: MM-EST-0001 / Baranda / Tolva" class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-2 min-h-[200px]">
+    @for (p of productosPagina(); track p.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+        (click)="agregarProducto(p)">
+        <div>
+          <div class="font-semibold text-sm">{{ p.sku }} — {{ p.name }}</div>
+          <div class="text-xs text-gray-500">{{ p.categoryName }}</div>
+        </div>
+        <span class="font-medium text-sm text-blue-700">S/ {{ p.salePricePen | number:'1.2-2' }}</span>
+      </div>
+    }
+    @if (productosFiltrados().length === 0) {
+      <div class="text-center text-gray-400 italic py-6 text-sm">No hay productos disponibles.</div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+    <span>{{ (productoPage-1)*5+1 }}-{{ minVal(productoPage*5, productosFiltrados().length) }} de {{ productosFiltrados().length }}</span>
+    <div class="flex gap-2 items-center">
+      <p-button icon="pi pi-chevron-left" [rounded]="true" [text]="true" size="small"
+        [disabled]="productoPage===1" (click)="productoPage=productoPage-1"/>
+      <span>{{ productoPage }} / {{ totalProductoPages() }}</span>
+      <p-button icon="pi pi-chevron-right" [rounded]="true" [text]="true" size="small"
+        [disabled]="productoPage>=totalProductoPages()" (click)="productoPage=productoPage+1"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="agregarProductoDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ AGREGAR SERVICIO ═══════════════════════════ -->
+<p-dialog [(visible)]="agregarServicioDialog" header="Agregar servicio"
+  [style]="{width:'560px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-3">Buscar servicio por SKU / nombre</div>
+  <p-iconfield iconPosition="left" class="w-full mb-4">
+    <p-inputicon><i class="pi pi-search text-gray-400"></i></p-inputicon>
+    <input pInputText [(ngModel)]="searchServicio" (ngModelChange)="servicioPag=1"
+      placeholder="Ej: SRV-FAB-0001 / Soldadura / Instalación" class="w-full"/>
+  </p-iconfield>
+
+  <div class="flex flex-col gap-2 min-h-[200px]">
+    @for (s of serviciosPagina(); track s.id) {
+      <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+        (click)="agregarServicio(s)">
+        <div>
+          <div class="font-semibold text-sm">{{ s.sku }} — {{ s.name }}</div>
+          <div class="text-xs text-gray-500">{{ s.serviceCategoryName }}</div>
+        </div>
+        <span class="font-medium text-sm text-purple-700">S/ {{ s.pricePen | number:'1.2-2' }}</span>
+      </div>
+    }
+    @if (serviciosFiltrados().length === 0) {
+      <div class="text-center text-gray-400 italic py-6 text-sm">No hay servicios disponibles.</div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+    <span>{{ (servicioPag-1)*5+1 }}-{{ minVal(servicioPag*5, serviciosFiltrados().length) }} de {{ serviciosFiltrados().length }}</span>
+    <div class="flex gap-2 items-center">
+      <p-button icon="pi pi-chevron-left" [rounded]="true" [text]="true" size="small"
+        [disabled]="servicioPag===1" (click)="servicioPag=servicioPag-1"/>
+      <span>{{ servicioPag }} / {{ totalServicioPages() }}</span>
+      <p-button icon="pi pi-chevron-right" [rounded]="true" [text]="true" size="small"
+        [disabled]="servicioPag>=totalServicioPages()" (click)="servicioPag=servicioPag+1"/>
+    </div>
+  </div>
+  <div class="mt-2 text-xs text-yellow-600">
+    ¿No existe el servicio? Usa <strong>⚡ Servicio rápido</strong> para crearlo y agregarlo al instante.
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="agregarServicioDialog=false"/>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ SERVICIO RÁPIDO ═══════════════════════════ -->
+<p-dialog [(visible)]="servicioRapidoDialog" header="Servicio rápido"
+  [style]="{width:'440px'}" [modal]="true" appendTo="body">
+  <div class="text-sm text-gray-500 mb-4">Agrega un servicio personalizado directo a esta nota.</div>
+  <div class="flex flex-col gap-3">
+    <div>
+      <label class="block text-sm font-medium mb-1">Nombre del servicio <span class="text-red-500">*</span></label>
+      <input pInputText [(ngModel)]="servicioRapidoNombre" placeholder="Ej: Cargo adicional por flete" class="w-full"/>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Precio <span class="text-red-500">*</span></label>
+      <p-inputNumber [(ngModel)]="servicioRapidoPrecio" [minFractionDigits]="2" [maxFractionDigits]="2"
+        placeholder="0.00" class="w-full" [min]="0"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-2">
+      <p-button label="Cancelar" severity="secondary" [outlined]="true" (click)="servicioRapidoDialog=false"/>
+      <p-button label="Crear y agregar" icon="pi pi-plus" (click)="agregarServicioRapido()"/>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- ═══════════════════════════ DETALLE NOTA ═══════════════════════════ -->
+<p-dialog [(visible)]="detalleDialog" header="Detalle de Nota"
+  [style]="{width:'70vw',maxWidth:'900px'}" [modal]="true" [maximizable]="true" appendTo="body">
+  @if (notaDetalle()) {
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
+      <div><span class="text-gray-500 block text-xs">Comprobante</span><strong class="font-mono">{{ getComprobante(notaDetalle()!) }}</strong></div>
+      <div><span class="text-gray-500 block text-xs">Doc. Original</span><strong class="font-mono">{{ notaDetalle()!.originalDocumentNumber }}</strong></div>
+      <div><span class="text-gray-500 block text-xs">Fecha emisión</span>{{ notaDetalle()!.issueDate }}</div>
+      <div>
+        <span class="text-gray-500 block text-xs">Tipo de nota</span>
+        <span class="font-medium">{{ notaDetalle()!.creditDebitNoteTypeName }}</span>
+      </div>
+      <div>
+        <span class="text-gray-500 block text-xs">Categoría</span>
+        <p-tag [value]="notaDetalle()!.documentTypeCode === '07' ? 'CRÉDITO' : 'DÉBITO'"
+          [severity]="notaDetalle()!.documentTypeCode === '07' ? 'info' : 'warn'"/>
+      </div>
+      <div>
+        <span class="text-gray-500 block text-xs">Estado Sunat</span>
+        <p-tag [value]="notaDetalle()!.status" [severity]="getSunatSeverity(notaDetalle()!.status)"/>
+      </div>
+      <div class="col-span-2 md:col-span-3">
+        <span class="text-gray-500 block text-xs">Motivo</span>
+        <span>{{ notaDetalle()!.reason }}</span>
+      </div>
+    </div>
+
+    @if (notaDetalle()!.sunatMessage) {
+      <div class="mb-3 p-2 rounded text-xs"
+        [ngClass]="notaDetalle()!.sunatResponseCode === '0' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
+        <strong>SUNAT:</strong> [{{ notaDetalle()!.sunatResponseCode }}] {{ notaDetalle()!.sunatMessage }}
+      </div>
+    }
+
+    <p-divider/>
+    <div class="font-semibold mb-2">Ítems</div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-xs text-gray-500 uppercase">
+          <th class="text-left py-1">Tipo</th>
+          <th class="text-left py-1">Descripción</th>
+          <th class="text-right py-1">Precio</th>
+          <th class="text-right py-1">Cant.</th>
+          <th class="text-right py-1">Dscto%</th>
+          <th class="text-right py-1">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of notaDetalle()!.items; track item.id) {
+          <tr class="border-b border-gray-100">
+            <td class="py-1">
+              <span class="px-2 py-0.5 rounded text-xs font-medium"
+                [ngClass]="{
+                  'bg-blue-100 text-blue-700': item.itemType==='PRODUCTO',
+                  'bg-purple-100 text-purple-700': item.itemType==='SERVICIO',
+                  'bg-yellow-100 text-yellow-700': item.itemType==='PERSONALIZADO'
+                }">
+                {{ getItemTypeLabel(item.itemType) }}
+              </span>
+            </td>
+            <td class="py-1">{{ item.description }}</td>
+            <td class="py-1 text-right">{{ item.unitPrice | number:'1.2-2' }}</td>
+            <td class="py-1 text-right">{{ item.quantity }}</td>
+            <td class="py-1 text-right">{{ item.discountPercentage }}%</td>
+            <td class="py-1 text-right font-medium">{{ item.subtotalAmount | number:'1.2-2' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="flex justify-end gap-6 mt-3 text-sm">
+      <span class="text-gray-500">Subtotal: <strong>S/ {{ notaDetalle()!.subtotalAmount | number:'1.2-2' }}</strong></span>
+      <span class="text-gray-500">IGV: <strong>S/ {{ notaDetalle()!.taxAmount | number:'1.2-2' }}</strong></span>
+      <span class="text-gray-700 font-bold">Total: S/ {{ notaDetalle()!.totalAmount | number:'1.2-2' }}</span>
+    </div>
+  }
+  <ng-template pTemplate="footer">
+    <p-button label="Cerrar" severity="secondary" [outlined]="true" (click)="detalleDialog=false"/>
+    @if (notaDetalle()?.pdfUrl) {
+      <p-button label="PDF" icon="pi pi-file-pdf" severity="danger" (click)="abrirPdf(notaDetalle()!)"/>
+    }
+  </ng-template>
+</p-dialog>
